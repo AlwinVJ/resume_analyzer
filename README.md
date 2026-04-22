@@ -1,0 +1,1 @@
+This is a group project, creating an advanced resume analyzer with ATS screening and other advanced features
