@@ -1,5 +1,31 @@
-import numpy as np
+from src.utils.logger import logger
+from configs.settings import TOP_K
 
-def cosine_similarity(vect1: np.ndarray, vect2: np.ndarray) -> float:
-    """Calculate the cosine similarity between two vectors."""
-    return np.dot(vect1, vect2) / (np.linalg.norm(vect1) * np.linalg.norm(vect2))
+class Retriever:
+    def __init__(self, model, index, chunks):
+        self.model = model
+        self.index = index
+        self.chunks = chunks
+    
+    def retrieve(self, query, top_k=TOP_K):
+        query_embedding = self.model.encode([query])
+
+        logger.info(f"Searching top {top_k} chunks")
+        distances, indices = self.index.search(
+            query_embedding,
+            top_k
+        )
+
+        results = []
+
+        for score, idx in zip(distances[0], indices[0]):
+            logger.info(
+                f"Retrieved chunk {idx} with score {score}"
+            )
+            results.append({
+                "text": self.chunks[idx].text,
+                "section": self.chunks[idx].section,
+                "score": float(score)
+            })
+        
+        return results
