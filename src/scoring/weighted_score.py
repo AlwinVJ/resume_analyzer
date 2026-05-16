@@ -63,16 +63,52 @@ def generate_insights(resume_features):
     return insights
 
 
-# Function to calculate the weighted score
-def calculate_weighted_score(resume_features):
+# Function to modify weight according to the job role
+def get_weights(job_role):
 
-    # Initialize hardcoded weights for initial calculations
-    weights = {
+    job_role = job_role.lower()
+
+    if job_role == "fresher":
+
+        return {
+            "skill_overlap": 0.40,
+            "semantic_similarity": 0.30,
+            "experience_match": 0.10,
+            "education_match": 0.20,
+        }
+
+    elif job_role == "mid":
+
+        return {
+            "skill_overlap": 0.35,
+            "semantic_similarity": 0.25,
+            "experience_match": 0.30,
+            "education_match": 0.10,
+        }
+
+    elif job_role == "senior":
+
+        return {
+            "skill_overlap": 0.30,
+            "semantic_similarity": 0.20,
+            "experience_match": 0.40,
+            "education_match": 0.10,
+        }
+
+    # Default fallback
+    return {
         "skill_overlap": 0.40,
         "semantic_similarity": 0.25,
         "experience_match": 0.25,
         "education_match": 0.10,
     }
+
+
+# Function to calculate the weighted score
+def calculate_weighted_score(resume_features, job_role = "mid"):
+
+    # Initialize weights according to the job role
+    weights = get_weights(job_role)
 
     breakdown = {}
 
@@ -99,6 +135,6 @@ if __name__ == "__main__":
         # "education_match": 1.00
     }
 
-    result = calculate_weighted_score(sample_resume)
+    result = calculate_weighted_score(sample_resume, "senior")
 
     print(result)
