@@ -1,7 +1,6 @@
-from schemas import Chunk
-from src.utils.logger import logger
+from src.rag.schemas import Chunk
 
-def chunk_resume_sections(sections: dict):
+def chunk_resume_sections(sections: dict, source_file: str):
     chunks = []
 
     for idx, (section, content) in enumerate(sections.items()):
@@ -9,8 +8,8 @@ def chunk_resume_sections(sections: dict):
             Chunk(
                 chunk_id=idx,
                 text=content,
-                section=section
+                section=section,
+                source_file=source_file
             )
         )
-    logger.info(f"Created {len(chunks)} chunks")
     return chunks
