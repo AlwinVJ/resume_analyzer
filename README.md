@@ -12,6 +12,13 @@ The project evaluates candidate profiles against job descriptions using semantic
 * Retrieval-Augmented Generation (RAG) pipeline
 * Modular architecture for team collaboration
 
+## Retrieval Architecture
+
+The system uses hybrid retrieval:
+- Semantic retrieval using Sentence-BERT + FAISS
+- Keyword retrieval using BM25
+- Weighted hybrid ranking
+
 ---
 
 ## 🛠️ Tech Stack

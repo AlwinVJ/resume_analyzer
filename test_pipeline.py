@@ -2,12 +2,20 @@ from src.rag.chunking import chunk_resume_sections
 from src.rag.embedding import EmbeddingModel
 from src.rag.indexing import VectorIndex
 from src.rag.retrieval import Retriever
+from src.rag.bm25_retrieval import BM25Retriever
+from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.pipeline import RAGPipeline
 
 resume_sections = {
-    "skills": "Python, NLP, Machine Learning",
-    "projects": "Built chatbot using transformers",
-    "experience": "Worked on recommendation systems"
+
+    "skills":
+        "Python, NLP, Machine Learning, AWS",
+
+    "projects":
+        "Built chatbot using transformers and PyTorch",
+
+    "experience":
+        "Worked on recommendation systems"
 }
 
 chunks = chunk_resume_sections(
@@ -27,11 +35,15 @@ index = VectorIndex(dimension)
 
 index.add_embeddings(embeddings)
 
-retriever = Retriever(model, index, chunks)
+semantic_retriever = Retriever(model, index, chunks)
 
-pipeline = RAGPipeline(retriever)
+bm25_retriever = BM25Retriever(chunks)
 
-query = "Looking for NLP Engineer with transformers experience"
+hybrid_retriever = HybridRetriever(semantic_retriever, bm25_retriever)
+
+pipeline = RAGPipeline(hybrid_retriever)
+
+query = ("Looking for AWS and PyTorch engineer")
 
 context = pipeline.run(query)
 
