@@ -1,9 +1,9 @@
-from scoring.feature_engineering import (
+from src.scoring.feature_engineering import (
     calculate_experience_match,
     calculate_education_match,
 )
 
-from scoring.weighted_score import (
+from src.scoring.weighted_score import (
     calculate_weighted_score,
 )
 
