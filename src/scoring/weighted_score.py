@@ -124,17 +124,3 @@ def calculate_weighted_score(resume_features, job_role = "mid"):
         "insights": generate_insights(resume_features),
         "breakdown": {key: round(value, 2) for key, value in breakdown.items()},
     }
-
-
-if __name__ == "__main__":
-
-    sample_resume = {
-        "skill_overlap": 0.80,
-        "semantic_similarity": 0.75,
-        "experience_match": 0.60,
-        # "education_match": 1.00
-    }
-
-    result = calculate_weighted_score(sample_resume, "senior")
-
-    print(result)

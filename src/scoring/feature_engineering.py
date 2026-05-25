@@ -192,23 +192,3 @@ def calculate_education_match(
         return 0.0
 
     return max(scores)
-
-
-if __name__ == "__main__":
-
-    candidate_education = []
-
-    result = (
-        calculate_education_match(
-            candidate_education=
-            candidate_education,
-
-            required_degree=
-            "Bachelor's",
-
-            required_field=
-            "Computer Science",
-        )
-    )
-
-    print(result)
