@@ -1,0 +1,28 @@
+skill,category
+python,Programming
+java,Programming
+javascript,Programming
+c++,Programming
+go,Programming
+sql,Programming
+react,Frameworks
+django,Frameworks
+flask,Frameworks
+fastapi,Frameworks
+machine learning,ML
+deep learning,ML
+tensorflow,ML
+pytorch,ML
+scikit-learn,ML
+natural language processing,ML
+aws,Cloud
+azure,Cloud
+google cloud platform,Cloud
+docker,DevOps
+kubernetes,DevOps
+git,DevOps
+jenkins,DevOps
+postgresql,Databases
+mongodb,Databases
+mysql,Databases
+redis,Databases

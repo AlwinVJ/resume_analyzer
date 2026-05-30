@@ -57,11 +57,5 @@ def bootstrap_skill_dictionary():
     )
 
 
-    print(f"Dictionary saved with {len(df)} skills")
-
-    print(df.head())
-
-
 if __name__ == "__main__":
-
     bootstrap_skill_dictionary()
