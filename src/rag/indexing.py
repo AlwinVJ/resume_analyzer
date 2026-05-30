@@ -1,4 +1,5 @@
 import faiss
+import pickle
 
 from src.utils.logger import logger
 
@@ -18,3 +19,35 @@ class VectorIndex:
             top_k
         )
         return distances, indices
+    
+    def save_index(self, file_path):
+        logger.info(
+            f"Saving FAISS index "
+            f"to {file_path}"
+        )
+        faiss.write_index(self.index, file_path)
+    
+    def load_index(self, file_path):
+        logger.info(
+            f"Loading FAISS index "
+            f"from {file_path}"
+        )
+        self.index = faiss.read_index(file_path)
+
+    def save_metadata(self, chunks, file_path):
+        logger.info(
+            f"Saving metadata "
+            f"to {file_path}"
+        )
+
+        with open(file_path, 'wb') as f:
+            pickle.dump(chunks, f)
+    
+    def load_metadata(self, file_path):
+        logger.info(
+            f"Loading metadata "
+            f"from {file_path}"
+        )
+        with open(file_path, 'rb') as f:
+            return pickle.load(f)
+        
