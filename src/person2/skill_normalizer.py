@@ -2,7 +2,6 @@ import pandas as pd
 from rapidfuzz import process
 
 
-
 # Load skill taxonomy
 skills_df = pd.read_csv(
     "data/skills_dictionary.csv"
