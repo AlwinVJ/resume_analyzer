@@ -1,0 +1,22 @@
+{
+    "resume_skills": [
+        "python",
+        "docker",
+        "aws"
+    ],
+    "jd_skills": [
+        "python",
+        "docker",
+        "tensorflow",
+        "kubernetes"
+    ],
+    "matched_skills": [
+        "python",
+        "docker"
+    ],
+    "missing_skills": [
+        "tensorflow",
+        "kubernetes"
+    ],
+    "match_percentage": 50.0
+}

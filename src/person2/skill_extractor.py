@@ -59,7 +59,7 @@ def extract_skills(text):
             )
 
     # Remove duplicates
-    return list(set(extracted_skills))
+    return list(dict.fromkeys(extracted_skills))
 
 
 # Manual testing
