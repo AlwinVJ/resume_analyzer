@@ -70,8 +70,8 @@ if __name__ == "__main__":
     TensorFlow and AWS.
     """
 
-    skills = extract_skills(
+    extracted_skills = extract_skills(
         sample_resume
     )
 
-    print(skills)
+    print(extracted_skills)
