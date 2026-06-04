@@ -7,32 +7,17 @@ from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.pipeline import RAGPipeline
 from src.rag.cross_encoder_reranker import CrossEncoderReranker
 from src.rag.query_expander import QueryExpander
+from src.parsers.pdf_parser import PDFParser
+from src.parsers.resume_parser import ResumeParser
 
-resume_sections = {
+pdf_path = "data/resumes/sample_resume.pdf"
 
-    "skills":
-        (
-            "Python, NLP, Machine Learning, "
-            "AWS, PyTorch, Deep Learning"
-        ),
-
-    "projects":
-        (
-            "Built chatbot using transformers "
-            "and PyTorch. "
-            "Developed semantic search systems."
-        ),
-
-    "experience":
-        (
-            "Worked on recommendation systems "
-            "and retrieval pipelines."
-        )
-}
+raw_text = PDFParser.parse(pdf_path)
+resume_sections = ResumeParser.parse(raw_text)
 
 chunks = chunk_resume_sections(
     resume_sections,
-    source_file="sample_resume.txt"
+    source_file="data/resumes/sample_resume.txt"
 )
 
 texts = [chunk.text for chunk in chunks]
