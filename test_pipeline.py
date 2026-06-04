@@ -12,7 +12,7 @@ from src.parsers.resume_parser import ResumeParser
 
 pdf_path = "data/resumes/sample_resume.pdf"
 
-raw_text = PDFParser.parse(pdf_path)
+raw_text = PDFParser.extract_text(pdf_path)
 resume_sections = ResumeParser.parse(raw_text)
 
 chunks = chunk_resume_sections(
