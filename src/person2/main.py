@@ -8,10 +8,7 @@ from .skill_normalizer import normalize_skills
 from .gap_engine import analyze_skill_gap
 
 
-# ==================================================
 # Main Pipeline
-# ==================================================
-
 def run_person2_pipeline(
     resume_text: str,
     jd_text: str

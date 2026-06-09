@@ -1,0 +1,200 @@
+skill,skill_aliases
+
+python,py|python programming
+java,jdk|java programming
+javascript,js|ecmascript
+typescript,ts
+c,c language
+c++,cpp|c plus plus
+c#,csharp|c-sharp|c sharp
+go,golang|go language
+rust,rustlang
+php,php language
+ruby,ruby language
+kotlin,kotlin language
+swift,swift language
+scala,scala language
+r,r language|r programming
+matlab,
+sql,structured query language
+
+html,html5
+css,css3
+sass,
+scss,
+tailwind,tailwindcss
+bootstrap,bootstrap framework
+material ui,mui|material-ui
+
+react,reactjs|react.js
+angular,angularjs
+vue,vuejs|vue.js
+nextjs,next.js|next js
+nuxtjs,nuxt.js
+svelte,sveltekit
+
+nodejs,node.js|node js|node
+express,expressjs|express.js
+nestjs,nest.js
+fastapi,
+django,
+flask,
+spring boot,springboot|spring framework
+laravel,
+asp.net,dotnet|.net
+ruby on rails,rails
+
+mysql,my sql
+sql server,microsoft sql server|mssql
+postgresql,postgres|postgres db|postgres database
+mongodb,mongo|mongo db|mongodb database
+redis,redis cache
+sqlite,
+oracle,oracle db
+mariadb,maria db
+cassandra,apache cassandra
+dynamodb,dynamo db|amazon dynamodb
+neo4j,graph database
+elasticsearch,elastic search
+opensearch,
+
+aws,amazon web services|amazon cloud
+azure,microsoft azure
+gcp,google cloud platform|google cloud
+cloud computing,cloud
+cloudformation,aws cloudformation
+lambda,aws lambda
+eks,elastic kubernetes service
+aks,azure kubernetes service
+
+docker,docker containers|docker containerization|docker container
+kubernetes,k8s
+terraform,
+jenkins,
+ansible,
+git,git scm
+github,github actions
+gitlab,gitlab ci
+bitbucket,
+argocd,argo cd
+helm,helm charts
+prometheus,
+grafana,
+ci/cd,continuous integration|continuous deployment
+
+linux,
+unix,
+bash,shell scripting|bash scripting
+powershell,power shell
+
+numpy,
+pandas,
+matplotlib,
+seaborn,
+plotly,
+scikit-learn,sklearn|scikit learn
+tensorflow,tf
+pytorch,torch
+keras,
+xgboost,
+lightgbm,
+catboost,
+
+machine learning,ml
+deep learning,dl
+natural language processing,nlp
+computer vision,cv
+reinforcement learning,rl
+predictive modeling,
+
+data analysis,data analytics
+data visualization,
+feature engineering,
+model deployment,
+statistical analysis,
+
+hadoop,apache hadoop
+spark,apache spark
+pyspark,
+kafka,apache kafka
+airflow,apache airflow
+databricks,
+snowflake,
+dbt,data build tool
+etl,extract transform load
+elt,
+data warehouse,data warehousing
+apache beam,
+
+mlflow,
+kubeflow,
+model monitoring,
+
+langchain,
+llamaindex,
+crewai,
+autogen,
+langgraph,
+haystack,
+
+hugging face,huggingface|hf
+transformers,hf transformers
+sentence transformers,sentence-transformers
+
+openai,openai api|gpt api
+anthropic,anthropic api|claude api
+gemini,google gemini|gemini api
+
+llm,large language model|large language models
+gpt,generative pretrained transformer
+bert,
+mistral,
+claude,
+
+prompt engineering,
+agentic ai,
+
+retrieval augmented generation,rag
+
+vector database,vector db
+pinecone,
+chromadb,chroma db
+faiss,
+weaviate,
+qdrant,
+
+rest api,restful api
+graphql,
+grpc,
+microservices,
+system design,
+
+rabbitmq,
+activemq,
+
+pytest,
+unittest,
+jest,
+cypress,
+playwright,
+selenium,
+
+tableau,
+power bi,powerbi
+excel,microsoft excel
+
+android,android development
+ios,ios development
+flutter,
+react native,react-native
+
+agile,
+scrum,
+
+cybersecurity,information security
+penetration testing,pentest
+network security,
+
+blockchain,
+ethereum,
+solidity
