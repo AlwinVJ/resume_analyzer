@@ -7,30 +7,81 @@ from src.person2.utils.preprocessing import (
     remove_skill_alias_conflicts
 )
 
-# Merge ESCO + Custom Skill Dictionaries
-def merge_skill_dictionaries():
-  
-    # Load Datasets
+
+# Configuration
+MAX_WORDS = 4
+
+
+# Build Extraction Dictionary
+def build_extraction_dictionary():
+
+    # Load ESCO Skills
     esco_df = pd.read_csv(
-        "data/processed/skills_dictionary.csv"
+        "data/raw/esco/skills_en.csv"
     )
 
-    custom_df = pd.read_csv(
-        "data/raw/custom/tech_skills.csv"
+    # Keep only knowledge skills
+    esco_df = esco_df[
+        esco_df["skillType"] == "knowledge"
+    ]
+
+    # Keep required columns
+    esco_df = esco_df[
+        [
+            "preferredLabel",
+            "altLabels"
+        ]
+    ]
+
+    # Rename columns
+    esco_df = esco_df.rename(
+        columns={
+            "preferredLabel": "skill",
+            "altLabels": "skill_aliases"
+        }
     )
 
-    # Normalize ESCO Dataset
+    # Remove invalid rows
+    esco_df = esco_df.dropna(
+        subset=["skill"]
+    )
+
+    # Normalize skill names
     esco_df["skill"] = (
         esco_df["skill"]
         .apply(normalize_text)
     )
 
+    # Normalize aliases
     esco_df["skill_aliases"] = (
         esco_df["skill_aliases"]
         .apply(normalize_aliases)
     )
 
-    # Normalize Custom Dataset
+
+    # Keep Only Short Knowledge Skills
+    esco_df = esco_df[
+        esco_df["skill"]
+        .str.split()
+        .str.len()
+        <= MAX_WORDS
+    ]
+
+    # Remove duplicate skills
+    esco_df = esco_df.drop_duplicates(
+        subset=["skill"]
+    )
+
+    print(
+        f"ESCO knowledge skills retained: {len(esco_df)}"
+    )
+
+
+    # Load Custom Tech Skills
+    custom_df = pd.read_csv(
+        "data/raw/custom/tech_skills.csv"
+    )
+
     custom_df["skill"] = (
         custom_df["skill"]
         .apply(normalize_text)
@@ -44,10 +95,11 @@ def merge_skill_dictionaries():
         .str.strip()
     )
 
-    # Build Lookup
+
+    # Merge Dictionaries
     merged_skills = {}
 
-    # Start with ESCO skills
+    # Add ESCO skills first
     for _, row in esco_df.iterrows():
 
         merged_skills[row["skill"]] = {
@@ -55,13 +107,12 @@ def merge_skill_dictionaries():
             "skill_aliases": row["skill_aliases"]
         }
 
-    # Merge Custom Skills
+    # Merge custom skills
     for _, row in custom_df.iterrows():
 
         skill = row["skill"]
         aliases = row["skill_aliases"]
 
-        # Skill already exists
         if skill in merged_skills:
 
             merged_skills[skill][
@@ -71,7 +122,6 @@ def merge_skill_dictionaries():
                 aliases
             )
 
-        # New skill
         else:
 
             merged_skills[skill] = {
@@ -79,10 +129,12 @@ def merge_skill_dictionaries():
                 "skill_aliases": aliases
             }
 
+
     # Convert To DataFrame
     final_df = pd.DataFrame(
         merged_skills.values()
     )
+
 
     # Remove Alias Conflicts
     canonical_skills = set(
@@ -99,29 +151,35 @@ def merge_skill_dictionaries():
         axis=1
     )
 
-    # Sort Alphabetically
+
+    # Sort
     final_df = (
         final_df
         .sort_values(by="skill")
         .reset_index(drop=True)
     )
 
-    # Save Final Dictionary
+  
+    # Save
+    output_path = (
+        "data/processed/"
+        "extraction_skills_dictionary.csv"
+    )
+
     final_df.to_csv(
-        "data/processed/final_skills_dictionary.csv",
+        output_path,
         index=False
     )
 
     print(
-        f"Generated {len(final_df)} skills"
+        f"Generated {len(final_df)} extraction skills"
     )
 
     print(
-        "Saved to: "
-        "data/processed/final_skills_dictionary.csv"
+        f"Saved to: {output_path}"
     )
 
 
 # Entry Point
 if __name__ == "__main__":
-    merge_skill_dictionaries()
+    build_extraction_dictionary()

@@ -2,54 +2,77 @@ import pandas as pd
 import spacy
 
 
-# Load spacy English language model
-nlp = spacy.load("en_core_web_sm")
+# Load SpaCy Model
+nlp = spacy.load(
+    "en_core_web_sm"
+)
 
 
-# Add custom rule-based entity matcher
+# Add Entity Ruler
 ruler = nlp.add_pipe(
     "entity_ruler",
     before="ner"
 )
 
 
-# Load skills dictionary
+# Load Extraction Dictionary
 skills_df = pd.read_csv(
-    "data/skills_dictionary.csv"
+    "data/processed/extraction_skills_dictionary.csv"
 )
 
 
-# Convert skills into EntityRuler patterns
+# Build Patterns
 patterns = []
 
-for skill in skills_df["skill"]:
+for _, row in skills_df.iterrows():
 
-    tokens = skill.split()
+    skill = str(
+        row["skill"]
+    ).strip().lower()
 
-    patterns.append(
-        {
-            "label": "SKILL",
-            "pattern": [
-                {"LOWER": token}
-                for token in tokens
-            ]
-        }
-    )
+    # Canonical Skill
+    all_terms = [skill]
+
+    # Aliases
+    aliases = str(
+        row["skill_aliases"]
+    ).strip()
+
+    if aliases and aliases != "nan":
+
+        all_terms.extend(
+            alias.strip().lower()
+            for alias in aliases.split("|")
+            if alias.strip()
+        )
+
+    # Create Pattern For Each Term
+    for term in all_terms:
+
+        patterns.append(
+            {
+                "label": "SKILL",
+                "pattern": [
+                    {"LOWER": token}
+                    for token in term.split()
+                ]
+            }
+        )
 
 
-# Register patterns in NLP pipeline
-ruler.add_patterns(patterns)
+# Register Patterns
+ruler.add_patterns(
+    patterns
+)
 
 
-# Extract skills from resume 
+# Skill Extraction
 def extract_skills(text):
 
-    # Process resume text through NLP pipeline
     doc = nlp(text)
 
     extracted_skills = []
 
-    # Collect detected skill entities
     for ent in doc.ents:
 
         if ent.label_ == "SKILL":
@@ -58,20 +81,28 @@ def extract_skills(text):
                 ent.text.lower()
             )
 
-    # Remove duplicates
-    return list(dict.fromkeys(extracted_skills))
-
-
-# Manual testing
-if __name__ == "__main__":
-
-    sample_resume = """
-    Experienced in Python, Docker,
-    TensorFlow and AWS.
-    """
-
-    extracted_skills = extract_skills(
-        sample_resume
+    # Remove Duplicates
+    return list(
+        dict.fromkeys(
+            extracted_skills
+        )
     )
 
-    print(extracted_skills)
+
+# Manual Test
+if __name__ == "__main__":
+
+    sample_text = """
+    Experienced in Python,
+    Amazon Web Services,
+    Docker,
+    TensorFlow,
+    PostgreSQL
+    and Agile Development.
+    """
+
+    print(
+        extract_skills(
+            sample_text
+        )
+    )

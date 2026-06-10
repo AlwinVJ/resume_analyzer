@@ -18,8 +18,7 @@ def generate_occupations_dataset():
     occupations_df = occupations_df[
         [
             "preferredLabel",
-            "altLabels",
-            "description"
+            "altLabels"
         ]
     ]
 
@@ -45,13 +44,6 @@ def generate_occupations_dataset():
     occupations_df["occupation_aliases"] = (
         occupations_df["occupation_aliases"]
         .apply(normalize_aliases)
-    )
-
-    occupations_df["description"] = (
-        occupations_df["description"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
     )
 
     # Remove Duplicate Occupations

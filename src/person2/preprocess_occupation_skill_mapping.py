@@ -18,7 +18,6 @@ def generate_occupation_skill_mapping():
             "occupationLabel",
             "skillLabel",
             "relationType",
-            "skillType"
         ]
     ]
 
@@ -28,7 +27,6 @@ def generate_occupation_skill_mapping():
             "occupationLabel": "occupation",
             "skillLabel": "skill",
             "relationType": "relation_type",
-            "skillType": "skill_type"
         }
     )
 
@@ -56,10 +54,6 @@ def generate_occupation_skill_mapping():
         .apply(normalize_text)
     )
 
-    df["skill_type"] = (
-        df["skill_type"]
-        .apply(normalize_text)
-    )
 
     # Remove Duplicate Mappings
     df = df.drop_duplicates(
@@ -67,7 +61,6 @@ def generate_occupation_skill_mapping():
             "occupation",
             "skill",
             "relation_type",
-            "skill_type"
         ]
     )
 

@@ -1,17 +1,32 @@
-# Find skill gaps
+# Find Skill Gaps
 def analyze_skill_gap(
     resume_skills,
     jd_skills
 ):
 
+    # Remove Duplicate Skills
+    resume_skills = list(
+        dict.fromkeys(resume_skills)
+    )
+
+    jd_skills = list(
+        dict.fromkeys(jd_skills)
+    )
+
+    # Initialize Results
     matched_skills = []
 
     missing_skills = []
 
-    # Compare JD skills against resume skills
+    # Convert Resume Skills To Set
+    resume_skill_set = set(
+        resume_skills
+    )
+
+    # Compare JD Skills Against Resume Skills
     for skill in jd_skills:
 
-        if skill in resume_skills:
+        if skill in resume_skill_set:
 
             matched_skills.append(
                 skill
@@ -23,8 +38,8 @@ def analyze_skill_gap(
                 skill
             )
 
-    # Calculate match percentage
-    if len(jd_skills) == 0:
+    # Calculate Match Percentage
+    if not jd_skills:
 
         match_percentage = 0
 
@@ -35,17 +50,22 @@ def analyze_skill_gap(
             / len(jd_skills)
         ) * 100
 
-    # Return gap analysis results
+    # Results
     return {
+
         "matched_skills": matched_skills,
+
         "missing_skills": missing_skills,
-        "match_percentage": round(match_percentage,2)
+
+        "match_percentage": round(
+            match_percentage,
+            2
+        )
     }
 
 
 
-
-# Manual testing
+# Manual Testing
 if __name__ == "__main__":
 
     resume_skills = [
