@@ -1,22 +1,36 @@
 import json
 
 from schemas.person2_input import Person2Input
-from schemas.person2_output import Person2Output
+from schemas.person2_output import (
+    Person2Output,
+    RankedSkill
+)
 
 from .skill_extractor import extract_skills
 from .skill_normalizer import normalize_skills
 from .gap_engine import analyze_skill_gap
+from .occupation_resolver import OccupationResolver
+from .skill_ranker import SkillRanker
+
+
+# Initialize Components
+occupation_resolver = OccupationResolver()
+
+skill_ranker = SkillRanker()
 
 
 # Main Pipeline
 def run_person2_pipeline(
     resume_text: str,
-    jd_text: str
+    jd_text: str,
+    job_title: str | None = None
 ):
+
     # Create Input Object
     person2_input = Person2Input(
         resume_text=resume_text,
-        jd_text=jd_text
+        jd_text=jd_text,
+        job_title=job_title
     )
 
     # Extract Skills
@@ -43,13 +57,60 @@ def run_person2_pipeline(
         normalized_jd_skills
     )
 
-    # Create Structured Output
+    # Resolve Occupation
+    occupation_result = (
+        occupation_resolver.resolve(
+            person2_input.job_title
+        )
+    )
+
+    occupation = (
+        occupation_result["occupation"]
+    )
+
+    # Rank Missing Skills
+    ranked_missing_skills = (
+        skill_ranker.rank_skills(
+            gap_analysis["missing_skills"],
+            occupation
+        )
+    )
+
+    # Convert to Pydantic Models
+    ranked_missing_skills = [
+
+        RankedSkill(
+            skill=item["skill"],
+            importance=item["importance"]
+        )
+
+        for item in ranked_missing_skills
+    ]
+
+
+    # Create Output Object
     person2_output = Person2Output(
-        resume_skills=normalized_resume_skills,
-        jd_skills=normalized_jd_skills,
-        matched_skills=gap_analysis["matched_skills"],
-        missing_skills=gap_analysis["missing_skills"],
-        match_percentage=gap_analysis["match_percentage"]
+
+        resume_skills=
+        normalized_resume_skills,
+
+        jd_skills=
+        normalized_jd_skills,
+
+        matched_skills=
+        gap_analysis["matched_skills"],
+
+        missing_skills=
+        gap_analysis["missing_skills"],
+
+        match_percentage=
+        gap_analysis["match_percentage"],
+
+        occupation=
+        occupation,
+
+        ranked_missing_skills=
+        ranked_missing_skills
     )
 
     return person2_output
@@ -58,18 +119,27 @@ def run_person2_pipeline(
 # Application Entry Point
 if __name__ == "__main__":
 
-    # Sample Input
     output = run_person2_pipeline(
+
+        job_title="Data Scientist",
+
         resume_text="""
-        Experienced in Python, Docker and AWS.
+        Experienced in Python,
+        SQL,
+        AWS and Pandas.
         """,
+
         jd_text="""
-        Looking for experience in Python,
-        Docker, TensorFlow and Kubernetes.
+        Looking for experience in
+        Python,
+        SQL,
+        AWS,
+        Statistics and TensorFlow.
         """
     )
 
-    # Save Output to JSON
+
+    # Save Output
     with open(
         "outputs/person2_output.json",
         "w"
@@ -81,7 +151,8 @@ if __name__ == "__main__":
             indent=4
         )
 
-    # Display Results
+
+    # Display Output
     print(
         output.model_dump()
     )

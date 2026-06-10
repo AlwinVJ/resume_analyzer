@@ -1,22 +1,36 @@
 {
     "resume_skills": [
         "python",
-        "docker",
-        "aws"
+        "sql",
+        "aws",
+        "pandas"
     ],
     "jd_skills": [
         "python",
-        "docker",
-        "tensorflow",
-        "kubernetes"
+        "sql",
+        "aws",
+        "statistics",
+        "tensorflow"
     ],
     "matched_skills": [
         "python",
-        "docker"
+        "sql",
+        "aws"
     ],
     "missing_skills": [
-        "tensorflow",
-        "kubernetes"
+        "statistics",
+        "tensorflow"
     ],
-    "match_percentage": 50.0
+    "match_percentage": 60.0,
+    "occupation": "data scientist",
+    "ranked_missing_skills": [
+        {
+            "skill": "statistics",
+            "importance": "High"
+        },
+        {
+            "skill": "tensorflow",
+            "importance": "Low"
+        }
+    ]
 }

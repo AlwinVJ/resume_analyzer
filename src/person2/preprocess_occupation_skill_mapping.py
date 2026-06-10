@@ -4,6 +4,11 @@ from src.person2.utils.preprocessing import (
     normalize_text
 )
 
+
+# Configuration
+MAX_WORDS = 4
+
+
 # Generate Occupation-Skill Mapping
 def generate_occupation_skill_mapping():
 
@@ -53,6 +58,15 @@ def generate_occupation_skill_mapping():
         df["relation_type"]
         .apply(normalize_text)
     )
+
+
+    # Keep Only Short Skills
+    df = df[
+        df["skill"]
+        .str.split()
+        .str.len()
+        <= MAX_WORDS
+    ]
 
 
     # Remove Duplicate Mappings
