@@ -1,42 +1,19 @@
 from collections import defaultdict
 
-from src.parsers.resume_loader import (
-    ResumeLoader
-)
+from src.parsers.resume_loader import ResumeLoader
 
-from src.rag.chunking import (
-    chunk_resume_sections
-)
+from src.rag.chunking import chunk_resume_sections
 
-from src.rag.embedding import (
-    EmbeddingModel
-)
+from src.rag.embedding import EmbeddingModel
 
-from src.rag.indexing import (
-    VectorIndex
-)
+from src.rag.indexing import VectorIndex
 
-from src.rag.retrieval import (
-    Retriever
-)
+from src.rag.retrieval import Retriever
 
-from src.rag.candidate_ranker import (
-    CandidateRanker
-)
+from src.rag.candidate_ranker import CandidateRanker
 
-# ===================================
-# LOAD RESUMES
-# ===================================
 
-parsed_resumes = (
-    ResumeLoader.load_resumes(
-        "data/resumes"
-    )
-)
-
-# ===================================
-# CREATE CHUNKS
-# ===================================
+parsed_resumes = ResumeLoader.load_resumes("data/resumes")
 
 all_chunks = []
 
@@ -50,11 +27,8 @@ for resume in parsed_resumes:
     )
 
     for chunk in chunks:
-
         chunk.chunk_id = chunk_id
-
         all_chunks.append(chunk)
-
         chunk_id += 1
 
 print(
@@ -62,9 +36,6 @@ print(
     f"{len(all_chunks)}"
 )
 
-# ===================================
-# EMBEDDINGS
-# ===================================
 
 texts = [
     chunk.text
@@ -75,10 +46,6 @@ model = EmbeddingModel()
 
 embeddings = model.encode(texts)
 
-# ===================================
-# FAISS INDEX
-# ===================================
-
 dimension = embeddings.shape[1]
 
 index = VectorIndex(dimension)
@@ -87,9 +54,6 @@ index.add_embeddings(
     embeddings
 )
 
-# ===================================
-# RETRIEVER
-# ===================================
 
 retriever = Retriever(
     model,
@@ -97,9 +61,6 @@ retriever = Retriever(
     all_chunks
 )
 
-# ===================================
-# QUERY
-# ===================================
 
 query = (
     "Looking for AWS Machine Learning Engineer "
@@ -111,31 +72,15 @@ results = retriever.retrieve(
     top_k=10
 )
 
-ranked_resumes = (
-    CandidateRanker.rank_candidates(
-        results
-    )
-)
+ranked_resumes = CandidateRanker.rank_candidates(results)
 
-# ===================================
-# OUTPUT
-# ===================================
 
-print(
-    "\n========== TOP CANDIDATES ==========\n"
-)
+print("\n========== TOP CANDIDATES ==========\n")
 
-for rank, (resume, score) in enumerate(
-    ranked_resumes,
-    start=1
-):
+for rank, (resume, score) in enumerate(ranked_resumes, start=1):
 
-    print(
-        f"{rank}. {resume}"
-    )
+    print(f"{rank}. {resume}")
 
-    print(
-        f"Score: {score:.4f}"
-    )
+    print(f"Score: {score:.4f}")
 
     print()

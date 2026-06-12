@@ -28,10 +28,7 @@ class CandidateRanker:
 
             semantic_score = result["semantic_score"]
 
-            current_best = candidate_sections[resume_name].get(
-                    section,
-                    0.0
-                )
+            current_best = candidate_sections[resume_name].get(section,0.0)
 
             if semantic_score > current_best:
                 candidate_sections[resume_name][section] = semantic_score
