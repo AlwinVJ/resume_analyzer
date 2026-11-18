@@ -1,8 +1,30 @@
+import React from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { AppShell } from './components/layout/AppShell';
+import { DashboardView } from './views/DashboardView';
+import { AnalyzeView } from './views/AnalyzeView';
+import { BulkScreeningView } from './views/BulkScreeningView';
+import { HistoryView } from './views/HistoryView';
+import { CandidateDetailView } from './views/CandidateDetailView';
+
+const AppContent: React.FC = () => {
+  const { currentTab } = useApp();
+
+  return (
+    <AppShell>
+      {currentTab === 'dashboard' && <DashboardView />}
+      {currentTab === 'analyze' && <AnalyzeView />}
+      {currentTab === 'screening' && <BulkScreeningView />}
+      {currentTab === 'history' && <HistoryView />}
+      {currentTab === 'candidate-detail' && <CandidateDetailView />}
+    </AppShell>
+  );
+};
+
 export default function App() {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-slate-800">Resume Analyzer</h1>
-      <p className="text-slate-600">Frontend initialized</p>
-    </div>
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
   );
 }
