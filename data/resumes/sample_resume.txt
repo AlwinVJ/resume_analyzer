@@ -1,0 +1,8 @@
+SKILLS
+Python, NLP, Machine Learning
+
+EXPERIENCE
+Built recommendation systems using embeddings.
+
+PROJECTS
+Created chatbot using transformers.
