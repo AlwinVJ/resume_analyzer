@@ -26,3 +26,12 @@ storage/*.bin
 storage/*.pkl
 
 *.log
+
+# Frontend & Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.env.local
+.env.*.local
+*.tsbuildinfo
