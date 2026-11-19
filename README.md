@@ -55,10 +55,9 @@ resume_analyzer/
 │   │   │   ├── common/              # Buttons, cards, score gauges, progress bars
 │   │   │   ├── layout/              # AppShell, Sidebar, Header
 │   │   │   └── screening/           # Candidate table, cards, compare modal
-│   │   ├── context/                 # Global AppContext & UI Demo mode state
+│   │   ├── context/                 # Global AppContext & active view state
 │   │   ├── services/
-│   │   │   ├── api/                 # API client, resumeApi, screeningApi, analysisApi
-│   │   │   └── mockData.ts          # Authentic mock fixtures for offline UI preview
+│   │   │   └── api/                 # API client, resumeApi, screeningApi, analysisApi
 │   │   ├── types/                   # Shared TypeScript domain contracts
 │   │   ├── views/                   # Dashboard, Analyze, BulkScreening, History, CandidateDetail
 │   │   ├── App.tsx
@@ -145,10 +144,11 @@ The frontend includes a dedicated API service layer:
 For the complete API contract specification, payloads, and roadmap details, see:
 👉 **[FRONTEND_BACKEND_INTEGRATION.md](file:///d:/Projects/GroupProjects/resume_analyzer/FRONTEND_BACKEND_INTEGRATION.md)**.
 
-### UI Demo Mode Switcher
-The frontend includes a built-in **UI Demo Mode** toggle in the sidebar:
-- **Off (Live Mode)**: Dispatches real HTTP requests to your FastAPI backend at `http://localhost:8000`. If an endpoint is offline or unavailable, clear error banners with actionable diagnostics are shown.
-- **On (Demo Mode)**: Enables offline testing with high-fidelity sample data, allowing complete visual inspection of all views, candidate comparisons, radial gauges, and report exports.
+### Production Architecture & Error Handling
+The frontend is built strictly as a client for the Resume Analyzer API:
+- **Clean Error Handling**: All HTTP exceptions and network failures are translated into clear, actionable user messages without exposing internal stack traces, system paths, or backend internals.
+- **Data Integrity**: The application renders authentic responses from the backend without hardcoded candidates, synthetic statistics, or fabricated analysis results.
+- **Realistic Empty States**: When no analysis records exist, the UI provides helpful, polished empty states encouraging candidate evaluations.
 
 ---
 

@@ -297,7 +297,6 @@ uvicorn api.main:app --reload --port 8000
 Ensure `frontend/.env` contains:
 ```env
 VITE_API_BASE_URL=http://localhost:8000
-VITE_ENABLE_MOCK_FALLBACK=false
 ```
 
 ### Step 3: Run Frontend
@@ -306,8 +305,3 @@ cd frontend
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Step 4: Toggle "UI Demo Mode" for Visual Review
-In the left sidebar, toggle **UI Demo Mode**:
-- **ON**: Runs entirely client-side with rich reference data for UI evaluation.
-- **OFF**: Issues real HTTP requests to your FastAPI backend at `http://localhost:8000`. If an endpoint is offline or returns an error, the UI displays the exact HTTP status and error details.
