@@ -1,161 +1,465 @@
-# Advanced Resume Analyzer
+# Resume Analyzer
 
-An end-to-end system for analyzing resumes using ATS-style screening and Retrieval-Augmented Generation (RAG).
-The project evaluates candidate profiles against job descriptions using semantic search and NLP techniques.
+Screens resumes against a job description. Resume PDFs are parsed into sections, embedded with Sentence-Transformers, indexed in FAISS, and ranked for a job description through a FastAPI endpoint. The repository also contains three modules built for deeper, explainable analysis: an LLM job-description parser, an LLM-assisted skill-gap engine, and a weighted scoring engine.
 
----
-
-## 🚀 Features
-
-* ATS-style resume screening
-* Semantic matching between resume and job description
-* Retrieval-Augmented Generation (RAG) pipeline
-* Modular architecture for team collaboration
+> **Project status: prototype (branch `dev`).**
+> The screening API (`POST /screen`) works end to end using dense retrieval.
+> The LLM JD parser, the skill engine and the scoring engine are implemented and can be used from Python, but they are **not yet connected to the API**.
+> See [Implementation status](#implementation-status) and [Known limitations](#known-limitations) before relying on any scores.
 
 ---
 
-## 🛠️ Tech Stack
+## Contents
 
-* Python
-* Sentence-Transformers (Embeddings)
-* FAISS (Vector Search)
-* NumPy
+- [How it works](#how-it-works)
+- [Implementation status](#implementation-status)
+- [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Running the screening API](#running-the-screening-api)
+- [Using the standalone modules](#using-the-standalone-modules)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Team](#team)
+- [License](#license)
 
 ---
 
-## 📂 Project Structure
+## How it works
+
+The application has two stages: an offline indexing step and an online screening request.
+
+```
+OFFLINE: build the resume index
+  data/resumes/*.pdf
+    → PDFParser.extract_text()           text from every page (PyMuPDF)
+    → ResumeParser.parse()               split into sections by header
+    → chunk_resume_sections()            one chunk per section
+    → EmbeddingModel.encode()            all-MiniLM-L6-v2, 384-d vectors
+    → VectorIndex                        storage/faiss_index.bin + storage/metadata.pkl
+
+ONLINE: POST /screen {job_description}
+    → JobDescriptionParser.build_query() keyword query from the JD
+    → Retriever.retrieve(top_k=10)       nearest resume sections in FAISS
+    → CandidateRanker.rank_candidates()  section-weighted score per resume
+    → {"candidates": [{"candidate": "<file>.pdf", "score": <float>}, ...]}
+```
+
+Separately, the repository contains modules for 1:1 resume-vs-JD analysis. They work on their own but are not wired into the API yet:
+
+```
+JobDescriptionParserLLM.parse(jd)     → structured JD (title, experience, required/preferred skills, education)
+SkillPipeline.run(sections, jd)       → matched, missing and uncertain skills with evidence and overlap ratio
+score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-feature breakdown, insights
+```
+
+---
+
+## Implementation status
+
+| Component | Location | Status |
+|---|---|---|
+| PDF text extraction | `src/parsers/pdf_parser.py` | ✅ Works for text-based PDFs |
+| Resume section parsing | `src/parsers/resume_parser.py` | 🟡 Recognises a fixed list of headers; contact details are not extracted |
+| Batch resume loading | `src/parsers/resume_loader.py` | ✅ Loads every `*.pdf` in a folder |
+| Embeddings + FAISS index | `src/rag/embedding.py`, `src/rag/indexing.py` | ✅ |
+| Index build | `src/services/indexing_service.py` | 🟡 Works; run from a script (no API endpoint) |
+| Dense retrieval | `src/rag/retrieval.py` | ✅ |
+| Candidate ranking | `src/rag/candidate_ranker.py` | 🟡 Works; score is a relative ranking value, not a 0–100 match score |
+| Screening API | `api/main.py`, `src/services/screening_service.py` | ✅ `POST /screen` |
+| Keyword JD → query | `src/parsers/job_description_parser.py` | 🟡 Recognises 19 built-in skill keywords only |
+| LLM JD parser | `src/parsers/job_description_parser_llm.py` | 🔌 Works standalone (needs Ollama); not used by the API |
+| Skill engine | `src/skill_engine/` | 🔌 Works standalone (needs Ollama); not used by the API |
+| Scoring engine | `src/scoring/` | 🔌 Works standalone; no module produces its inputs yet |
+| BM25 / hybrid retrieval, rerankers, query expansion, RAG pipeline | `src/rag/` | 🔌 Implemented; not used by the API |
+| Resume upload, 1:1 analysis endpoint, database | — | ❌ Not implemented |
+
+✅ working · 🟡 partial · 🔌 implemented but not integrated · ❌ missing
+
+---
+
+## Tech stack
+
+| Area | Technology |
+|---|---|
+| Language | Python 3.13 (version used by the team) |
+| API | FastAPI 0.136, Uvicorn 0.48, Pydantic 2 |
+| PDF parsing | PyMuPDF 1.27 |
+| Embeddings | sentence-transformers 5.4 with `all-MiniLM-L6-v2` |
+| Vector search | faiss-cpu 1.13 (`IndexFlatL2`) |
+| Keyword search | rank-bm25 0.2 |
+| Reranking | Cross-encoder `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+| LLMs (local) | Ollama: `llama3.1:8b` (JD parser), `qwen2.5:3b` (skill engine) |
+
+---
+
+## Project structure
 
 ```
 resume_analyzer/
-│
+├── api/
+│   ├── main.py                      FastAPI app: GET /, POST /screen
+│   └── schemas.py                   Request/response models
+├── configs/
+│   └── settings.py                  Embedding model name, retrieval constants
+├── data/
+│   ├── resumes/                     Resume PDFs to index (6 synthetic samples included)
+│   └── job_descriptions/            Sample job description
 ├── src/
+│   ├── parsers/
+│   │   ├── pdf_parser.py            PDF → text
+│   │   ├── resume_parser.py         Text → {section: text}
+│   │   ├── resume_loader.py         Folder of PDFs → parsed resumes
+│   │   ├── job_description_parser.py      Keyword-based JD → search query
+│   │   └── job_description_parser_llm.py  LLM-based JD → structured JSON
 │   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── embedding.py
-│   │   ├── retrieval.py
-│   │   └── chunking.py
-│
-├── requirements.txt
-└── README.md
+│   │   ├── chunking.py              Sections → Chunk objects
+│   │   ├── embedding.py             SentenceTransformer wrapper
+│   │   ├── indexing.py              FAISS index + metadata persistence
+│   │   ├── retrieval.py             Dense retrieval
+│   │   ├── candidate_ranker.py      Chunks → ranked candidates
+│   │   ├── bm25_retrieval.py        BM25 keyword retrieval
+│   │   ├── hybrid_retriever.py      Dense + BM25 fusion
+│   │   ├── reranker.py              Bi-encoder reranker
+│   │   ├── cross_encoder_reranker.py  Cross-encoder reranker
+│   │   ├── query_expander.py        Static synonym expansion
+│   │   ├── context_builder.py       Chunks → context string
+│   │   ├── pipeline.py              expand → retrieve → rerank → context
+│   │   └── schemas.py               Chunk dataclass
+│   ├── services/
+│   │   ├── indexing_service.py      Build and save the index
+│   │   └── screening_service.py     Rank indexed candidates for a JD
+│   ├── skill_engine/                Skill extraction, matching and gap report (see its README)
+│   ├── scoring/
+│   │   ├── feature_engineering.py   Experience and education match features
+│   │   ├── weighted_score.py        Role-based weights, verdict, insights
+│   │   └── pipeline.py              score_resume() entry point
+│   └── utils/
+│       └── logger.py                Shared logger
+├── storage/                         Generated FAISS index and metadata
+├── tests/                           Unit tests and runnable check scripts
+└── requirements.txt
 ```
 
 ---
 
-## ⚙️ Setup Instructions
+## Getting started
+
+### Prerequisites
+
+- **Python 3.13**. This is the version the team develops on.
+- **Git**.
+- **Internet access on first run.** The embedding model is downloaded from Hugging Face the first time it is used.
+- **[Ollama](https://ollama.com)**, only if you want to use the LLM JD parser or the skill engine. The screening API does not need it.
 
 ### 1. Clone the repository
 
 ```bash
 git clone https://github.com/AlwinVJ/resume_analyzer.git
 cd resume_analyzer
+git checkout dev
 ```
 
-### 2. Create virtual environment
+### 2. Create and activate a virtual environment
 
 ```bash
-python -m venv venv
+python -m venv .venv
 ```
-
-### 3. Activate environment
 
 ```bash
-venv\Scripts\activate   # Windows
-# source venv/bin/activate  # macOS/Linux
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# macOS / Linux
+source .venv/bin/activate
 ```
 
-### 4. Install dependencies
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
+> On Linux, the pinned `torch` wheel from PyPI includes CUDA libraries and is several GB. If you don't need a GPU, install the CPU build first and then the rest of the requirements:
+> `pip install torch --index-url https://download.pytorch.org/whl/cpu`
 
-## ▶️ How to Run (Basic Flow)
+### 4. (Optional) Pull the LLM models
 
-```python
-from src.rag.retrieval import retrieve_relevant_chunks
-
-results = retrieve_relevant_chunks(
-    resume_text="Your resume text here",
-    job_description="Job description here",
-    k=5
-)
-
-print(results)
+```bash
+ollama pull llama3.1:8b    # used by JobDescriptionParserLLM
+ollama pull qwen2.5:3b     # used by the skill engine
 ```
 
----
-
-## 🧠 RAG Module (Haroon)
-
-### Responsibilities
-
-* Generate embeddings for resume and job description
-* Store and manage vector representations
-* Retrieve top-K relevant chunks using similarity search
+> Run every command in this README from the **repository root**. Modules are imported as `src.…`, `api.…` and `configs.…`, and the storage and data paths are relative to the root.
 
 ---
 
-### Input
+## Running the screening API
+
+### 1. Add resumes
+
+Put resume PDFs in `data/resumes/`. Six synthetic sample resumes are already there. Only `.pdf` files are indexed.
+
+### 2. Build the index
+
+```bash
+python -m tests.test_indexing_service
+```
+
+This parses every PDF, embeds each section, and writes `storage/faiss_index.bin` and `storage/metadata.pkl`. It prints the number of resumes and chunks indexed. **Re-run it whenever you add, remove or change resumes.** The API does not detect a stale index.
+
+The same thing from Python:
 
 ```python
+from src.services.indexing_service import IndexingService
+
+print(IndexingService.build_index())   # {'num_resumes': ..., 'num_chunks': ...}
+```
+
+### 3. Start the server
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Interactive API docs are at <http://127.0.0.1:8000/docs>.
+
+### 4. Screen candidates
+
+**Request**
+
+```bash
+curl -X POST http://127.0.0.1:8000/screen \
+  -H "Content-Type: application/json" \
+  -d '{"job_description": "Machine Learning Engineer with Python, PyTorch, NLP, AWS and FastAPI experience."}'
+```
+
+**Response shape**
+
+```json
 {
-    "resume_text": str,
-    "job_description": str
+  "candidates": [
+    { "candidate": "Alex_Mercer_ML_Backend_Resume.pdf", "score": 0.0 }
+  ]
 }
 ```
 
+| Field | Meaning |
+|---|---|
+| `candidate` | File name of the resume PDF |
+| `score` | Relative ranking value: a section-weighted sum of retrieval similarities. Use it to order candidates for one job description. It is **not** a percentage and is not comparable across job descriptions. |
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Health message |
+| `POST` | `/screen` | Rank all indexed resumes for a job description |
+
 ---
 
-### Output
+## Using the standalone modules
+
+These modules are not called by the API yet. You can use them directly from Python.
+
+### Parse a resume
 
 ```python
-[
-    {"chunk": "...", "score": 0.87},
-    {"chunk": "...", "score": 0.82}
-]
+from src.parsers.pdf_parser import PDFParser
+from src.parsers.resume_parser import ResumeParser
+
+text = PDFParser.extract_text("data/resumes/Alex_Mercer_ML_Backend_Resume.pdf")
+sections = ResumeParser.parse(text)
+# {'professional_summary': '...', 'technical_skills': '...', 'experience': '...', 'education': '...'}
 ```
 
+A header is recognised only when the whole line exactly matches one of the following (case-insensitive): `Professional Summary`, `Summary`, `Education`, `Technical Skills`, `Skills`, `Core Competencies`, `Projects`, `Experience`, `Work Experience`, `Professional Experience`, `Certifications`.
+
+### Parse a job description with the LLM (requires Ollama + `llama3.1:8b`)
+
+```python
+from src.parsers.job_description_parser_llm import JobDescriptionParserLLM
+
+jd = open("data/job_descriptions/sample_jd.txt", encoding="utf-8").read()
+print(JobDescriptionParserLLM.parse(jd))
+```
+
+Output schema:
+
+```json
+{
+  "job_title": "string or null",
+  "experience_required": { "min": "int or null", "max": "int or null" },
+  "required_skills": ["lower-cased skill", "..."],
+  "preferred_skills": ["..."],
+  "education": ["..."]
+}
+```
+
+### Skill-gap analysis (requires Ollama + `qwen2.5:3b`)
+
+```python
+from src.skill_engine import SkillPipeline
+
+report = SkillPipeline().run(sections, jd)   # sections from ResumeParser, jd as text
+print(report.to_dict())
+```
+
+The report contains `resume_skills`, `jd_skills`, `matched_skills`, `missing_skills` (with importance), `uncertain_skills`, `evidence_map`, `overlap_ratio` and `gap_count`. You can pass your own LLM client with `SkillPipeline(llm_client=...)`. Any object with a `generate(prompt) -> str` method works, which is how the unit tests run offline. See [`src/skill_engine/README.md`](src/skill_engine/README.md) for details.
+
+### Weighted scoring
+
+```python
+from src.scoring.pipeline import score_resume
+
+result = score_resume(
+    resume_data={
+        "relevant_experience": 2,                                   # years
+        "education": [{"degree": "Bachelor's", "field": "Computer Science"}],
+        "skill_overlap": 0.80,                                      # 0–1
+        "semantic_similarity": 0.75,                                # 0–1
+    },
+    jd_data={
+        "required_experience": 3,
+        "required_degree": "Bachelor's",
+        "required_field": "Computer Science",
+    },
+)
+# {'final_score': 76.75, 'verdict': 'Moderate Match',
+#  'insights': ['Strong skill overlap', 'Strong semantic alignment',
+#               'Experience partially meets requirements', 'Education requirement satisfied'],
+#  'breakdown': {'skill_overlap': 28.0, 'semantic_similarity': 18.75,
+#                'experience_match': 20.0, 'education_match': 10.0}}
+```
+
+- **Verdict thresholds:** 80 or above is *Strong Match*, 65 or above is *Moderate Match*, anything lower is *Weak Match*.
+- **Role weights:** `get_weights()` defines weights for `fresher`, `mid` and `senior`. `score_resume()` currently always uses `mid`.
+- **Inputs:** nothing in the codebase produces these inputs automatically yet. You have to supply all of them.
+- **Degree names:** `required_degree` must be one of the recognised values (`Bachelor's`, `Master's`, …). Other values, such as `B.Tech`, raise an error. See [Known limitations](#known-limitations).
+
 ---
 
-### Pipeline Flow
+## Configuration
 
-1. Receive cleaned text from preprocessing module
-2. Split text into chunks (`chunking.py`)
-3. Generate embeddings (`embedding.py`)
-4. Store/search vectors using FAISS
-5. Retrieve top-K relevant chunks (`retrieval.py`)
+| Setting | Where | Default | Used by |
+|---|---|---|---|
+| `MODEL_NAME` | `configs/settings.py` | `all-MiniLM-L6-v2` | Embeddings (indexing and screening) |
+| `SIMILARITY_THRESHOLD` | `configs/settings.py` | `0.30` | Dense retrieval |
+| `TOP_K` | `configs/settings.py` | `3` | Defined; the screening service uses its own `top_k=10` |
+| `SEMANTIC_WEIGHT`, `BM25_WEIGHT` | `configs/settings.py` | `0.7`, `0.3` | Hybrid retriever |
+| `MODEL_NAME` | `JobDescriptionParserLLM` class | `llama3.1:8b` | LLM JD parser |
+| `OLLAMA_MODEL` | environment variable | `qwen2.5:3b` | Skill engine |
+| `OLLAMA_BASE_URL` | environment variable | `http://localhost:11434` | Skill engine |
+| Index paths | `src/services/*.py` | `storage/faiss_index.bin`, `storage/metadata.pkl` | Indexing and screening |
 
----
-
-### Tech Stack
-
-* Sentence-BERT (Embeddings)
-* FAISS (Similarity Search)
-
----
-
-## 🤝 Contribution Guidelines
-
-* Create a feature branch before making changes
-
-  ```bash
-  git checkout -b feature/<your-feature-name>
-  ```
-* Commit with clear messages
-* Open a Pull Request for review
+If you change `MODEL_NAME`, rebuild the index. Vectors from different models are not compatible.
 
 ---
 
-## 📌 Notes
+## Testing
 
-* Ensure consistent embedding model for indexing and querying
-* Preprocessing module must output clean text
-* Do not commit `venv/` or cache files
+### Unit tests (offline)
+
+```bash
+python -m unittest tests.test_skill_engine -v
+```
+
+Five tests cover the skill engine using a fake LLM client (`tests/mocks.py`). No network or Ollama needed.
+
+### Check scripts
+
+The other files in `tests/` are scripts that print their results for manual inspection. They contain no assertions. Run them as modules from the repository root:
+
+| Script | Needs | Notes |
+|---|---|---|
+| `python -m tests.test_pdf_parser` | — | Extracts text from a sample PDF |
+| `python -m tests.test_resume_parser` | — | Prints parsed sections |
+| `python -m tests.test_resume_loader` | — | Parses every PDF in `data/resumes/` |
+| `python -m tests.test_job_description_parser` | — | Keyword JD parser |
+| `python -m tests.test_llm_validation` | — | LLM output validation rules |
+| `python -m tests.test_llm_normalization` | — | LLM output normalisation |
+| `python -m tests.test_job_description_parser_llm` | Ollama | Calls `llama3.1:8b` |
+| `python -m tests.test_indexing_service` | Model download | **Rebuilds `storage/`** |
+| `python -m tests.test_screening_service` | Model download, built index | Runs a sample screening |
+
+> ⚠️ Avoid running plain `pytest` on the whole folder for now. Collecting the script files executes them, which rebuilds the index and calls Ollama.
 
 ---
 
-## 📄 License
+## Known limitations
+
+These come from the backend audit of the `dev` branch. The full findings and a step-by-step plan are in [`docs/RESUME_ANALYZER_BACKEND_AUDIT.md`](docs/RESUME_ANALYZER_BACKEND_AUDIT.md).
+
+- **Keyword-only screening query.** `/screen` builds its query from 19 built-in keywords (Python, AWS, NLP, …). A job description with none of them, such as a React or Java role, gives an empty query and a ranking that doesn't reflect the JD. Substring matching also adds false keywords (for example "leverage" matches `rag`).
+- **Ranking score.** Only resumes with a section in the top 10 retrieved chunks appear in the results. Resumes with more matching sections score higher. The section weights sum to 1.12.
+- **Modules not integrated.** The LLM JD parser, skill engine, scoring engine, hybrid retrieval and rerankers are not called by the API.
+- **Resume parsing.** Headers must match the list above exactly. `Skills:` (with a colon), `Work History` and similar variants are missed, and a repeated header overwrites the earlier section. Name, email and phone are not extracted. Scanned (image-only) PDFs produce no text and are silently skipped. A corrupt PDF stops the whole indexing run.
+- **Scoring engine.** It can return scores above 100. It raises an error for unrecognised degree names or a missing experience requirement.
+- **LLM failures.** If Ollama is unavailable, the skill engine returns an empty report instead of raising an error.
+- **No upload endpoint, input validation, authentication or database.** Resumes are read from `data/resumes/`, and the index is stored as files in `storage/`. Missing index files cause a `500` error.
+- **Performance.** The embedding model and index are reloaded on every `/screen` request.
+- **Unverified ranking quality.** No retrieval or scoring evaluation set exists yet, so ranking quality has not been measured.
+
+---
+
+## Roadmap
+
+The audit's implementation roadmap has eight phases. In summary:
+
+1. **Critical integration.** Shared data schemas, one LLM provider, JD-driven queries, complete and bounded candidate ranking, and an `AnalysisService` that connects the JD parser, skill engine and scoring engine.
+2. **Missing backend features.** Resume upload, `POST /analyze`, an enriched `POST /screen`, persistence (SQLite), index management and health checks.
+3. **Parsing and extraction.** Robust PDF and section parsing; contact, education and experience extraction; one shared skill taxonomy.
+4. **RAG and embeddings.** Cosine similarity, size-bounded chunks, fixed hybrid retrieval, candidate-scoped evidence and grounded explanations, and an evaluation set.
+5. **Scoring.** Required vs preferred weighting, scores bounded to 0–100, explanation objects and calibration.
+6. **API, security and reliability.** Input validation, error codes, prompt-injection defences, auth, CORS, rate limits and PII-safe logging.
+7. **Testing and performance.** Unit, integration and API tests, caching, and CI.
+8. **Deployment and docs.** Packaging, Docker, and documentation.
+
+---
+
+## Contributing
+
+**Branches**
+
+| Branch | Purpose |
+|---|---|
+| `main` | Stable branch |
+| `dev` | Integration branch. Open pull requests against `dev`. |
+| `feature/<name>` | One branch per feature or fix |
+
+**Workflow**
+
+```bash
+git checkout dev && git pull
+git checkout -b feature/<your-feature>
+# make changes, run the unit tests
+git commit -m "Short, descriptive message"
+git push -u origin feature/<your-feature>
+# open a pull request into dev
+```
+
+**Guidelines**
+
+- Keep new modules importable from the repository root (`from src.… import …`).
+- Add assertion-based tests for new code. Prefer injecting fakes for the LLM and embedding model so tests run offline.
+- Do not commit virtual environments, `__pycache__/`, `.env`, or generated files in `storage/`.
+- Save `requirements.txt` as UTF-8 so dependency changes show up as reviewable diffs. The current file is UTF-16, which git treats as binary.
+
+---
+
+## Team
+
+| Area | Branch | Contributor |
+|---|---|---|
+| PDF ingestion, RAG module, JD parsing, screening and indexing services | `feature/pdf-ingestion`, `feature/rag-module`, `feature/llm-jd-parser` | haroonpuzhakkal07-pixel |
+| Scoring engine | `feature/scoring-system` | AlwinVJ |
+| Skill engine | `feature/skill-extract` | Athira Suresh |
+
+---
+
+## License
 
 This project is for educational purposes.
