@@ -12,9 +12,9 @@ export interface ExperienceEducationCardProps {
 
 export const ExperienceEducationCard: React.FC<ExperienceEducationCardProps> = ({
   experienceYears,
-  experienceCompatibility = 'High',
-  educationLevel = "Master's Degree in Computer Science",
-  educationCompatibility = 'Satisfied',
+  experienceCompatibility,
+  educationLevel,
+  educationCompatibility,
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -26,35 +26,37 @@ export const ExperienceEducationCard: React.FC<ExperienceEducationCardProps> = (
             <span>Experience Analysis</span>
           </div>
         }
-        action={<StatusBadge verdict={experienceCompatibility} size="sm" />}
+        action={experienceCompatibility ? <StatusBadge verdict={experienceCompatibility} size="sm" /> : undefined}
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-100">
             <div className="flex items-center gap-2.5">
               <Calendar className="w-4 h-4 text-slate-400" />
               <div>
-                <span className="text-xs text-slate-500 block">Total Relevant Experience</span>
+                <span className="text-xs text-slate-500 block">Total Experience</span>
                 <span className="text-sm font-semibold text-slate-900">
                   {experienceYears !== null && experienceYears !== undefined
-                    ? `${experienceYears} Years Proven Experience`
-                    : 'Experience calculated from date intervals'}
+                    ? `${experienceYears} Years Documented`
+                    : 'Duration not specified'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
-            <div className="flex items-center justify-between text-slate-500 py-1 border-b border-slate-100">
-              <span>Required by Job:</span>
-              <span className="font-medium text-slate-700">3+ Years (Mid-Senior)</span>
+          <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+            <div className="flex items-center justify-between text-slate-500 py-1.5 border-b border-slate-100">
+              <span>Experience Level:</span>
+              <span className="font-medium text-slate-800">
+                {experienceYears !== null && experienceYears !== undefined
+                  ? experienceYears >= 5 ? 'Senior (5+ years)' : experienceYears >= 2 ? 'Mid-Level (2–5 years)' : 'Junior / Entry-Level'
+                  : 'Derived from timeline'}
+              </span>
             </div>
-            <div className="flex items-center justify-between text-slate-500 py-1 border-b border-slate-100">
-              <span>Candidate Track Record:</span>
-              <span className="font-medium text-emerald-700">Meets Seniority Threshold</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-500 py-1">
-              <span>Seniority Alignment:</span>
-              <span className="font-medium text-slate-700">Strong Senior Fit</span>
+            <div className="flex items-center justify-between text-slate-500 py-1.5">
+              <span>Experience Compatibility:</span>
+              <span className="font-medium text-slate-800">
+                {experienceCompatibility || 'Evaluated against job requirements'}
+              </span>
             </div>
           </div>
         </div>
@@ -68,14 +70,14 @@ export const ExperienceEducationCard: React.FC<ExperienceEducationCardProps> = (
             <span>Education Analysis</span>
           </div>
         }
-        action={<StatusBadge verdict={educationCompatibility} size="sm" />}
+        action={educationCompatibility ? <StatusBadge verdict={educationCompatibility} size="sm" /> : undefined}
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-100">
             <div className="flex items-center gap-2.5">
               <Award className="w-4 h-4 text-slate-400" />
               <div>
-                <span className="text-xs text-slate-500 block">Highest Degree Identified</span>
+                <span className="text-xs text-slate-500 block">Identified Degree / Credential</span>
                 <span className="text-sm font-semibold text-slate-900">
                   {educationLevel || 'Degree extracted from Academic background'}
                 </span>
@@ -83,18 +85,18 @@ export const ExperienceEducationCard: React.FC<ExperienceEducationCardProps> = (
             </div>
           </div>
 
-          <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
-            <div className="flex items-center justify-between text-slate-500 py-1 border-b border-slate-100">
-              <span>Prerequisite:</span>
-              <span className="font-medium text-slate-700">Bachelor's or Master's in STEM</span>
+          <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+            <div className="flex items-center justify-between text-slate-500 py-1.5 border-b border-slate-100">
+              <span>Academic Verification:</span>
+              <span className="font-medium text-slate-800">
+                {educationLevel ? 'Extracted from Resume' : 'Not identified'}
+              </span>
             </div>
-            <div className="flex items-center justify-between text-slate-500 py-1 border-b border-slate-100">
-              <span>Major Field:</span>
-              <span className="font-medium text-slate-700">Computer Science / Data Science</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-500 py-1">
-              <span>Academic Match Status:</span>
-              <span className="font-medium text-emerald-700">Full Requirement Verified</span>
+            <div className="flex items-center justify-between text-slate-500 py-1.5">
+              <span>Education Compatibility:</span>
+              <span className="font-medium text-slate-800">
+                {educationCompatibility || 'Evaluated against job requirements'}
+              </span>
             </div>
           </div>
         </div>

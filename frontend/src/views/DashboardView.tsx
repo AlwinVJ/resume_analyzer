@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { DashboardStats, AnalysisHistoryItem } from '../types';
 import { historyApi } from '../services/api/historyApi';
-import { MOCK_DASHBOARD_STATS } from '../services/mockData';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -18,19 +17,20 @@ import {
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { setCurrentTab, isDemoMode, setSelectedMatchResult } = useApp();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const { setCurrentTab, setSelectedMatchResult } = useApp();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalAnalyzed: 0,
+    totalScreeningSessions: 0,
+    averageScore: 0,
+    topScore: 0,
+    recentAnalyses: [],
+  });
 
   useEffect(() => {
     const loadStats = async () => {
-      if (isDemoMode) {
-        setStats(MOCK_DASHBOARD_STATS);
-        return;
-      }
-
       try {
         const history = await historyApi.getHistory();
-        if (history.length > 0) {
+        if (history && history.length > 0) {
           const totalScore = history.reduce((acc, h) => acc + h.score, 0);
           const topScore = Math.max(...history.map((h) => h.score));
           setStats({
@@ -40,28 +40,14 @@ export const DashboardView: React.FC = () => {
             topScore: topScore,
             recentAnalyses: history.slice(0, 5),
           });
-        } else {
-          setStats({
-            totalAnalyzed: 0,
-            totalScreeningSessions: 0,
-            averageScore: 0,
-            topScore: 0,
-            recentAnalyses: [],
-          });
         }
       } catch {
-        setStats({
-          totalAnalyzed: 0,
-          totalScreeningSessions: 0,
-          averageScore: 0,
-          topScore: 0,
-          recentAnalyses: [],
-        });
+        // Leave default zero state
       }
     };
 
     loadStats();
-  }, [isDemoMode]);
+  }, []);
 
   const handleOpenAnalysis = (item: AnalysisHistoryItem) => {
     setSelectedMatchResult(item.result);
@@ -70,7 +56,7 @@ export const DashboardView: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Welcome Hero Banner (inspired by Matchwize & HirePlus) */}
+      {/* Welcome Hero Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 text-white p-6 sm:p-8 shadow-sm border border-slate-700/40">
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold mb-3">
@@ -78,10 +64,10 @@ export const DashboardView: React.FC = () => {
             <span>AI Resume Matching & Candidate Ranking</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Welcome to Resume Analyzer
+            Candidate Screening & Matching
           </h2>
           <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-            Evaluate candidate profiles against job requirements with hybrid semantic retrieval, LLM-powered skill extraction, and explainable multi-factor scoring.
+            Evaluate candidate profiles against job requirements with verified skill extraction, semantic text alignment, and explainable multi-factor scoring.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -103,7 +89,6 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
 
-        {/* Subtle decorative geometric overlay */}
         <div className="absolute -right-10 -bottom-10 w-64 h-64 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
       </div>
 
@@ -117,9 +102,9 @@ export const DashboardView: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-slate-500 block">Total Analyzed</span>
             <span className="text-2xl font-bold text-slate-900 font-mono">
-              {stats?.totalAnalyzed ?? 0}
+              {stats.totalAnalyzed}
             </span>
-            <span className="text-[11px] text-slate-400 block mt-0.5">Resumes processed</span>
+            <span className="text-[11px] text-slate-400 block mt-0.5">Resumes evaluated</span>
           </div>
         </Card>
 
@@ -131,7 +116,7 @@ export const DashboardView: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-slate-500 block">Screening Sessions</span>
             <span className="text-2xl font-bold text-slate-900 font-mono">
-              {stats?.totalScreeningSessions ?? 0}
+              {stats.totalScreeningSessions}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">Bulk batch runs</span>
           </div>
@@ -145,10 +130,10 @@ export const DashboardView: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-slate-500 block">Average Match Score</span>
             <span className="text-2xl font-bold text-slate-900 font-mono">
-              {stats?.averageScore ? `${stats.averageScore}%` : '—'}
+              {stats.averageScore > 0 ? `${stats.averageScore}%` : '—'}
             </span>
             <span className="text-[11px] text-emerald-600 font-medium block mt-0.5">
-              Across candidate runs
+              {stats.averageScore > 0 ? 'Across completed runs' : 'No data yet'}
             </span>
           </div>
         </Card>
@@ -161,10 +146,10 @@ export const DashboardView: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-slate-500 block">Top Match Score</span>
             <span className="text-2xl font-bold text-slate-900 font-mono">
-              {stats?.topScore ? `${stats.topScore}%` : '—'}
+              {stats.topScore > 0 ? `${stats.topScore}%` : '—'}
             </span>
             <span className="text-[11px] text-amber-600 font-medium block mt-0.5">
-              Highest scoring profile
+              {stats.topScore > 0 ? 'Highest scoring profile' : 'No data yet'}
             </span>
           </div>
         </Card>
@@ -179,7 +164,7 @@ export const DashboardView: React.FC = () => {
             </div>
             <h3 className="text-lg font-bold text-slate-900">One-to-One Resume Analysis</h3>
             <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
-              Upload a single PDF resume and match it against a detailed job description. Get instant multi-factor scoring, verified skill overlap, and gap recommendations.
+              Upload a candidate PDF resume and compare it against target job requirements. Receive detailed alignment scoring, verified skill overlap, and gap recommendations.
             </p>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -202,7 +187,7 @@ export const DashboardView: React.FC = () => {
             </div>
             <h3 className="text-lg font-bold text-slate-900">Bulk Candidate Screening</h3>
             <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
-              Compare multiple resumes or evaluate the entire pre-indexed candidate corpus against one job description. Rank candidates, filter by verdict, and compare top picks side-by-side.
+              Screen multiple candidates simultaneously against a job description. Rank candidates, filter by match classification, and compare candidate profiles side-by-side.
             </p>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -224,7 +209,7 @@ export const DashboardView: React.FC = () => {
         title="Recent Analysis Activity"
         subtitle="Latest evaluated candidates and screening sessions"
         action={
-          stats && stats.recentAnalyses.length > 0 ? (
+          stats.recentAnalyses.length > 0 ? (
             <Button
               variant="ghost"
               size="sm"
@@ -236,7 +221,7 @@ export const DashboardView: React.FC = () => {
           ) : undefined
         }
       >
-        {stats && stats.recentAnalyses.length > 0 ? (
+        {stats.recentAnalyses.length > 0 ? (
           <div className="divide-y divide-slate-100">
             {stats.recentAnalyses.map((item) => (
               <div
@@ -274,7 +259,7 @@ export const DashboardView: React.FC = () => {
         ) : (
           <EmptyState
             title="No Analysis Activity Yet"
-            description="Run your first single resume analysis or bulk screening session to start generating candidate match intelligence."
+            description="Upload a resume for one-to-one analysis or run bulk candidate screening to begin generating match intelligence."
             actionText="Analyze First Resume"
             onAction={() => setCurrentTab('analyze')}
           />

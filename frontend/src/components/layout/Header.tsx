@@ -1,18 +1,19 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Menu, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { Menu, Plus } from 'lucide-react';
+import { Button } from '../common/Button';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
-  const { currentTab, isDemoMode, backendStatus, refreshBackendStatus } = useApp();
+  const { currentTab, setCurrentTab } = useApp();
 
   const getPageTitle = () => {
     switch (currentTab) {
       case 'dashboard':
-        return 'System Overview & Analytics';
+        return 'Dashboard & Overview';
       case 'analyze':
         return 'One-to-One Resume Analysis';
       case 'screening':
@@ -49,37 +50,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Demo Mode Badge */}
-        {isDemoMode && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>UI Demo Mode</span>
-          </span>
-        )}
-
-        {/* Backend health ping */}
-        {!isDemoMode && backendStatus === 'offline' && (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-            <span className="hidden sm:inline">Backend Offline (Port 8000)</span>
-            <span className="sm:hidden">Offline</span>
-            <button
-              onClick={refreshBackendStatus}
-              title="Ping backend"
-              className="p-0.5 hover:text-rose-900"
-            >
-              <RefreshCw className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-
-        {/* Connected state */}
-        {!isDemoMode && backendStatus === 'online' && (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="hidden sm:inline">Backend Connected</span>
-            <span className="sm:hidden">API Live</span>
-          </div>
+        {currentTab !== 'analyze' && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCurrentTab('analyze')}
+            leftIcon={<Plus className="w-3.5 h-3.5 text-emerald-600" />}
+            className="text-xs font-medium"
+          >
+            Analyze Resume
+          </Button>
         )}
       </div>
     </header>

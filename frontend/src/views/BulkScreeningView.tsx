@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { screeningApi } from '../services/api/screeningApi';
 import { historyApi } from '../services/api/historyApi';
-import { MOCK_CANDIDATES, SAMPLE_JOB_DESCRIPTIONS, MOCK_ANALYSIS_RESULT } from '../services/mockData';
 import { CandidateScreeningResult, ApiError } from '../types';
 import { CandidateTable } from '../components/screening/CandidateTable';
 import { CandidateCard } from '../components/screening/CandidateCard';
@@ -20,10 +19,11 @@ import {
   LayoutGrid,
   List,
   RotateCcw,
+  Loader2,
 } from 'lucide-react';
 
 export const BulkScreeningView: React.FC = () => {
-  const { isDemoMode, navigateToCandidateDetail } = useApp();
+  const { navigateToCandidateDetail } = useApp();
 
   const [files, setFiles] = useState<File[]>([]);
   const [usePreIndexedCorpus, setUsePreIndexedCorpus] = useState<boolean>(true);
@@ -50,19 +50,18 @@ export const BulkScreeningView: React.FC = () => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleLoadSampleJD = () => {
-    const sample = SAMPLE_JOB_DESCRIPTIONS[0];
-    setJobDescription(sample.text);
-  };
-
   const handleStartScreening = async () => {
     if (!jobDescription.trim()) {
-      setError({ message: 'Please provide a job description for screening candidates.' });
+      setError({ message: 'Please provide a valid job description before continuing.' });
+      return;
+    }
+    if (jobDescription.trim().length < 50) {
+      setError({ message: 'The job description is too short. Please provide a more complete job description.' });
       return;
     }
 
-    if (!usePreIndexedCorpus && files.length === 0 && !isDemoMode) {
-      setError({ message: 'Please upload at least one PDF resume or enable "Pre-indexed corpus" mode.' });
+    if (!usePreIndexedCorpus && files.length === 0) {
+      setError({ message: 'Please upload at least one PDF resume to screen or select the indexed candidate pool.' });
       return;
     }
 
@@ -72,47 +71,64 @@ export const BulkScreeningView: React.FC = () => {
     try {
       let results: CandidateScreeningResult[];
 
-      if (isDemoMode) {
-        await new Promise((res) => setTimeout(res, 1800));
-        results = MOCK_CANDIDATES;
-      } else {
-        // Hit real backend POST /screen endpoint
+      if (usePreIndexedCorpus) {
+        // Hit backend POST /screen endpoint
         results = await screeningApi.screen(jobDescription, 10);
+      } else {
+        // Hit backend POST /screen/batch with uploaded files
+        results = await screeningApi.screenFiles(files, jobDescription);
       }
 
       setCandidates(results);
 
-      // Save summary record in history
+      // Save summary record in history if results found
       if (results.length > 0) {
         const avgScore = Math.round(results.reduce((acc, c) => acc + c.score, 0) / results.length);
         const topCandidate = results[0];
+
         await historyApi.saveHistoryItem({
           id: `screening-${Date.now()}`,
           candidate_name: `${results.length} Candidates Screened`,
-          file_name: `Batch Session (${results.length} resumes)`,
+          file_name: `Screening Batch (${results.length} candidates)`,
           job_title: 'Bulk Role Evaluation',
           score: avgScore,
           verdict: avgScore >= 75 ? 'Strong Match' : avgScore >= 50 ? 'Moderate Match' : 'Weak Match',
           date: new Date().toISOString().replace('T', ' ').substring(0, 16),
           type: 'bulk',
           result: topCandidate.match_result || {
-            ...MOCK_ANALYSIS_RESULT,
-            candidate_name: topCandidate.candidate_name,
-            file_name: topCandidate.file_name,
             final_score: topCandidate.score,
             verdict: topCandidate.verdict,
+            candidate_name: topCandidate.candidate_name,
+            file_name: topCandidate.file_name,
+            job_title: 'Screening Evaluation',
+            summary: `Candidate ranked #${1} in screening session with a score of ${topCandidate.score}%.`,
+            breakdown: {
+              skill_overlap: Math.round(topCandidate.score * 0.4),
+              semantic_similarity: Math.round(topCandidate.score * 0.3),
+              experience_match: Math.round(topCandidate.score * 0.2),
+              education_match: Math.round(topCandidate.score * 0.1),
+            },
+            insights: [`Candidate achieved rank #1 in the screening batch.`],
+            skill_gap: {
+              resume_skills: topCandidate.matched_skills,
+              jd_skills: [...topCandidate.matched_skills, ...topCandidate.missing_skills],
+              matched_skills: topCandidate.matched_skills,
+              missing_skills: topCandidate.missing_skills.map((s) => ({ skill: s, importance: 0.8 })),
+              uncertain_skills: [],
+              overlap_ratio: topCandidate.score / 100,
+              gap_count: topCandidate.missing_skills.length,
+            },
+            evidence: [],
+            recommendations: [],
+            created_at: new Date().toISOString(),
           },
         });
       }
     } catch (err: unknown) {
       const apiErr = err as ApiError;
       setError({
-        message: apiErr.message || 'Screening request failed.',
+        message: apiErr.message || 'Candidate screening is temporarily unavailable. Please try again later.',
         status: apiErr.status,
-        details:
-          apiErr.status === 0
-            ? 'Backend is not running at http://localhost:8000. Start FastAPI server or toggle UI Demo Mode in sidebar.'
-            : JSON.stringify(apiErr.details || {}),
       });
     } finally {
       setIsLoading(false);
@@ -120,22 +136,7 @@ export const BulkScreeningView: React.FC = () => {
   };
 
   const handleOpenCandidate = (candidate: CandidateScreeningResult) => {
-    // If the candidate doesn't have an attached full match_result, generate an aligned detailed result
-    const result = candidate.match_result || {
-      ...MOCK_ANALYSIS_RESULT,
-      candidate_name: candidate.candidate_name,
-      file_name: candidate.file_name,
-      final_score: candidate.score,
-      verdict: candidate.verdict,
-      experience_years: candidate.experience_years,
-      skill_gap: {
-        ...MOCK_ANALYSIS_RESULT.skill_gap,
-        matched_skills: candidate.matched_skills,
-        missing_skills: candidate.missing_skills.map((s) => ({ skill: s, importance: 0.8 })),
-        gap_count: candidate.missing_skills.length,
-      },
-    };
-    navigateToCandidateDetail(candidate, result);
+    navigateToCandidateDetail(candidate);
   };
 
   const handleOpenCompare = (selected: CandidateScreeningResult[]) => {
@@ -152,7 +153,7 @@ export const BulkScreeningView: React.FC = () => {
             Bulk Candidate Screening
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Rank multiple candidates against a target job description using hybrid semantic search and skill verification.
+            Rank multiple candidates against a target job description using semantic search and skill verification.
           </p>
         </div>
 
@@ -196,11 +197,26 @@ export const BulkScreeningView: React.FC = () => {
       {/* Error alert */}
       {error && (
         <ErrorAlert
+          title="Screening Request Failed"
           message={error.message}
-          details={typeof error.details === 'string' ? error.details : undefined}
           onDismiss={() => setError(null)}
           onRetry={handleStartScreening}
         />
+      )}
+
+      {/* Loading state indicator */}
+      {isLoading && (
+        <Card className="p-8 border-emerald-200 bg-emerald-50/20 text-center">
+          <div className="flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
+            <h3 className="text-sm font-semibold text-slate-900">
+              Screening & Ranking Candidates...
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+              Evaluating candidate resumes against job description criteria. Please wait while results are processed.
+            </p>
+          </div>
+        </Card>
       )}
 
       {/* Top Input Form (Upload + JD) */}
@@ -214,7 +230,7 @@ export const BulkScreeningView: React.FC = () => {
                 <span>Candidate Sources</span>
               </div>
             }
-            subtitle="Choose between pre-indexed candidate database or upload a new batch"
+            subtitle="Choose between existing candidate pool or upload a new batch"
           >
             <div className="space-y-4">
               {/* Source Mode Selector */}
@@ -229,7 +245,7 @@ export const BulkScreeningView: React.FC = () => {
                   }`}
                 >
                   <Database className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Indexed Corpus</span>
+                  <span>Candidate Pool</span>
                 </button>
                 <button
                   type="button"
@@ -249,14 +265,11 @@ export const BulkScreeningView: React.FC = () => {
                 <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 text-xs text-slate-700 space-y-2">
                   <div className="flex items-center gap-2 font-semibold text-emerald-900">
                     <Database className="w-4 h-4 text-emerald-600" />
-                    <span>FAISS Vector Database Active</span>
+                    <span>Candidate Repository Active</span>
                   </div>
                   <p className="text-slate-600 leading-relaxed">
-                    Evaluates all candidate resumes already parsed and indexed in the backend storage (e.g. <code>data/resumes/*.pdf</code>).
+                    Evaluates all candidate profiles currently stored in the candidate repository against the job requirements.
                   </p>
-                  <span className="inline-block text-[11px] font-mono bg-emerald-100/70 text-emerald-800 px-2 py-0.5 rounded">
-                    Uses backend POST /screen
-                  </span>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -312,15 +325,6 @@ export const BulkScreeningView: React.FC = () => {
           <Card
             title="Target Job Description"
             subtitle="Paste target job requirements for ranking"
-            action={
-              <button
-                type="button"
-                onClick={handleLoadSampleJD}
-                className="text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60"
-              >
-                Sample JD
-              </button>
-            }
           >
             <div className="space-y-2">
               <textarea
@@ -373,9 +377,7 @@ export const BulkScreeningView: React.FC = () => {
             <EmptyState
               icon={<Users className="w-8 h-8 text-slate-400" />}
               title="No Candidates Screened Yet"
-              description="Provide a job description above and start screening to retrieve ranked candidates with explainable match metrics."
-              actionText="Load Sample JD to Screen"
-              onAction={handleLoadSampleJD}
+              description="Provide a job description above and start screening to retrieve ranked candidates."
             />
           )
         )}

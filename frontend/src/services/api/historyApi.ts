@@ -15,8 +15,7 @@ export const historyApi = {
         return response;
       }
     } catch {
-      // Backend history endpoint not yet implemented (expected as per technical audit)
-      // Return client local storage
+      // Backend history endpoint unavailable; fallback to local storage
     }
 
     return this.getLocalHistory();

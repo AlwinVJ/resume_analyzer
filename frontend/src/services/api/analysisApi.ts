@@ -9,7 +9,7 @@ export interface AnalyzeRequest {
 export const analysisApi = {
   /**
    * Run 1:1 analysis comparing a resume against a job description
-   * Endpoint: POST /analyze (Proposed backend endpoint from Technical Audit §16)
+   * Endpoint: POST /analyze
    *
    * Accepts either an existing resume_id or a direct file upload multipart request.
    */

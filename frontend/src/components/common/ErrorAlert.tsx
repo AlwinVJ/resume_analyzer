@@ -6,16 +6,14 @@ import { Button } from './Button';
 export interface ErrorAlertProps {
   title?: string;
   message: string;
-  details?: string;
   onRetry?: () => void;
   onDismiss?: () => void;
   className?: string;
 }
 
 export const ErrorAlert: React.FC<ErrorAlertProps> = ({
-  title = 'API Request Failed',
+  title = 'Request Could Not Be Completed',
   message,
-  details,
   onRetry,
   onDismiss,
   className,
@@ -30,12 +28,7 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
       <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-semibold text-rose-900">{title}</h4>
-        <p className="text-sm text-rose-800 mt-0.5 leading-relaxed">{message}</p>
-        {details && (
-          <p className="mt-2 text-xs font-mono bg-rose-100/80 p-2 rounded text-rose-700 overflow-x-auto">
-            {details}
-          </p>
-        )}
+        <p className="text-xs sm:text-sm text-rose-800 mt-1 leading-relaxed">{message}</p>
         {onRetry && (
           <div className="mt-3">
             <Button
@@ -43,9 +36,9 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
               size="sm"
               onClick={onRetry}
               leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-              className="bg-white hover:bg-rose-50 text-rose-700 border-rose-300"
+              className="bg-white hover:bg-rose-50 text-rose-700 border-rose-300 text-xs"
             >
-              Retry Request
+              Try Again
             </Button>
           </div>
         )}

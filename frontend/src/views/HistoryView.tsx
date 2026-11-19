@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { AnalysisHistoryItem, MatchVerdict } from '../types';
 import { historyApi } from '../services/api/historyApi';
-import { MOCK_HISTORY } from '../services/mockData';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
@@ -18,21 +17,16 @@ import {
 } from 'lucide-react';
 
 export const HistoryView: React.FC = () => {
-  const { isDemoMode, setCurrentTab, setSelectedMatchResult } = useApp();
+  const { setCurrentTab, setSelectedMatchResult } = useApp();
   const [historyItems, setHistoryItems] = useState<AnalysisHistoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk'>('all');
   const [filterVerdict, setFilterVerdict] = useState<'all' | MatchVerdict>('all');
 
   const loadHistory = async () => {
-    if (isDemoMode) {
-      setHistoryItems(MOCK_HISTORY);
-      return;
-    }
-
     try {
       const items = await historyApi.getHistory();
-      setHistoryItems(items);
+      setHistoryItems(items || []);
     } catch {
       setHistoryItems([]);
     }
@@ -40,7 +34,7 @@ export const HistoryView: React.FC = () => {
 
   useEffect(() => {
     loadHistory();
-  }, [isDemoMode]);
+  }, []);
 
   const handleOpenItem = (item: AnalysisHistoryItem) => {
     setSelectedMatchResult(item.result);

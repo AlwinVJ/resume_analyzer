@@ -296,7 +296,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
         <span>
           Showing {filteredAndSortedCandidates.length} of {candidates.length} candidates
         </span>
-        <span className="text-slate-400">Ranked by hybrid semantic & skill score</span>
+        <span className="text-slate-400">Ranked by candidate match score</span>
       </div>
     </div>
   );

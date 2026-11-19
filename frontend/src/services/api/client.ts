@@ -6,6 +6,57 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+/**
+ * Sanitizes technical or internal backend errors into friendly, production-grade messages.
+ * Prevents raw technical error codes or stack traces from reaching end users.
+ */
+function sanitizeErrorMessage(status: number, rawMessage?: string): string {
+  const lower = (rawMessage || '').toLowerCase();
+
+  // Unsupported media type
+  if (status === 415 || lower.includes('pdf') || lower.includes('unsupported') || lower.includes('extension')) {
+    return 'This file format is not supported. Please upload a valid PDF document.';
+  }
+
+  // File size limit
+  if (status === 413 || lower.includes('size') || lower.includes('too large') || lower.includes('payload')) {
+    return 'The uploaded file exceeds the size limit. Please upload a PDF under 10MB.';
+  }
+
+  // Unprocessable input or validation error
+  if (status === 422) {
+    if (lower.includes('job') || lower.includes('description')) {
+      return 'Please provide a valid job description before continuing.';
+    }
+    if (lower.includes('corrupt') || lower.includes('parse') || lower.includes('resume')) {
+      return "We couldn't process this resume. Please ensure it is a valid text-based PDF.";
+    }
+    return 'The provided information could not be processed. Please check your inputs.';
+  }
+
+  // Service unavailable (e.g. LLM, vector index, backend down)
+  if (status === 503 || status === 502 || status === 504 || lower.includes('unavailable') || lower.includes('timeout')) {
+    return 'The analysis service is temporarily unavailable. Please try again in a moment.';
+  }
+
+  // Not found
+  if (status === 404) {
+    return 'The requested analysis or candidate record could not be found.';
+  }
+
+  // Network connection error
+  if (status === 0 || lower.includes('network') || lower.includes('failed to fetch')) {
+    return 'Unable to connect to the server. Please check your connection and try again.';
+  }
+
+  // Generic internal server error
+  if (status >= 500) {
+    return 'Something went wrong while processing your request. Please try again.';
+  }
+
+  return 'An unexpected error occurred. Please try again.';
+}
+
 export class ApiClient {
   private baseUrl: string;
 
@@ -48,15 +99,22 @@ export class ApiClient {
       const data = isJson ? await response.json() : await response.text();
 
       if (!response.ok) {
+        // Log technical detail to console for developer inspection without showing in UI
+        if (typeof console !== 'undefined' && console.error) {
+          console.error(`[API Error] ${config.method || 'GET'} ${endpoint} -> Status ${response.status}`, data);
+        }
+
+        const rawDetail = typeof data === 'object' && data !== null && 'detail' in data
+          ? String((data as { detail: unknown }).detail)
+          : typeof data === 'string'
+          ? data
+          : undefined;
+
+        const friendlyMessage = sanitizeErrorMessage(response.status, rawDetail);
+
         const error: ApiError = {
-          message: (data && typeof data === 'object' && 'detail' in data)
-            ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail))
-            : (data && typeof data === 'object' && 'message' in data)
-            ? String(data.message)
-            : `Request failed with status ${response.status} (${response.statusText})`,
+          message: friendlyMessage,
           status: response.status,
-          error_code: (data && typeof data === 'object' && 'error_code' in data) ? String(data.error_code) : undefined,
-          details: data,
         };
         throw error;
       }
@@ -67,11 +125,14 @@ export class ApiClient {
         throw err;
       }
 
+      // Log network error for developer inspection
+      if (typeof console !== 'undefined' && console.error) {
+        console.error(`[Network Error] ${config.method || 'GET'} ${endpoint}`, err);
+      }
+
       const networkError: ApiError = {
-        message: err instanceof Error ? err.message : 'Network error: could not connect to backend',
+        message: sanitizeErrorMessage(0),
         status: 0,
-        error_code: 'NETWORK_ERROR',
-        details: err,
       };
       throw networkError;
     }

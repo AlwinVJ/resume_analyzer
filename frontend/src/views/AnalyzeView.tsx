@@ -2,13 +2,11 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { analysisApi } from '../services/api/analysisApi';
 import { historyApi } from '../services/api/historyApi';
-import { MOCK_ANALYSIS_RESULT, SAMPLE_JOB_DESCRIPTIONS } from '../services/mockData';
 import { MatchResult, ApiError } from '../types';
 import { AnalysisResultView } from '../components/analysis/AnalysisResultView';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { ErrorAlert } from '../components/common/ErrorAlert';
-import { ProgressStepper, StepItem } from '../components/common/ProgressStepper';
 import {
   UploadCloud,
   X,
@@ -16,23 +14,16 @@ import {
   Trash2,
   ArrowRight,
   FileCheck,
+  Loader2,
 } from 'lucide-react';
 
-const ANALYSIS_STEPS: StepItem[] = [
-  { id: '1', label: 'PDF Parsing', description: 'Extracting clean sections' },
-  { id: '2', label: 'Skill Extraction', description: 'Finding technical skills' },
-  { id: '3', label: 'Semantic Matching', description: 'Sentence-BERT embeddings' },
-  { id: '4', label: 'Scoring Engine', description: 'Calculating final alignment' },
-];
-
 export const AnalyzeView: React.FC = () => {
-  const { isDemoMode, selectedMatchResult, setSelectedMatchResult } = useApp();
+  const { selectedMatchResult, setSelectedMatchResult } = useApp();
 
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<ApiError | null>(null);
   const [activeResult, setActiveResult] = useState<MatchResult | null>(selectedMatchResult);
 
@@ -67,16 +58,14 @@ export const AnalyzeView: React.FC = () => {
     setError(null);
     if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
       setError({
-        message: 'Invalid file format: Only PDF documents are supported for resume analysis.',
-        error_code: 'INVALID_FILE_TYPE',
+        message: 'This file format is not supported. Please upload a PDF.',
       });
       return;
     }
     const MAX_SIZE_MB = 10;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       setError({
-        message: `File size exceeds the ${MAX_SIZE_MB}MB limit. Please upload a smaller PDF.`,
-        error_code: 'FILE_TOO_LARGE',
+        message: `The file exceeds the ${MAX_SIZE_MB}MB limit. Please upload a smaller PDF.`,
       });
       return;
     }
@@ -95,70 +84,44 @@ export const AnalyzeView: React.FC = () => {
       const text = await navigator.clipboard.readText();
       setJobDescription(text);
     } catch {
-      // Clipboard access denied
+      // Clipboard access denied by browser
     }
   };
 
-  const handleLoadSampleJD = () => {
-    const sample = SAMPLE_JOB_DESCRIPTIONS[0];
-    setJobDescription(sample.text);
-  };
-
   const handleAnalyze = async () => {
-    if (!resumeFile && !isDemoMode) {
+    if (!resumeFile) {
       setError({ message: 'Please upload a resume PDF to analyze.' });
       return;
     }
     if (!jobDescription.trim()) {
-      setError({ message: 'Please provide a job description to compare against.' });
+      setError({ message: 'Please provide a valid job description before continuing.' });
       return;
     }
     if (jobDescription.trim().length < 50) {
       setError({
-        message: 'The job description is too short. Please provide at least 50 characters of job requirements.',
+        message: 'The job description is too short. Please provide a more complete job description.',
       });
       return;
     }
 
     setError(null);
     setIsLoading(true);
-    setCurrentStep(0);
-
-    // Progress step animation
-    const stepInterval = setInterval(() => {
-      setCurrentStep((prev) => (prev < ANALYSIS_STEPS.length - 1 ? prev + 1 : prev));
-    }, 700);
 
     try {
-      let result: MatchResult;
+      // Real API call to POST /analyze
+      const result = await analysisApi.analyze({
+        file: resumeFile,
+        job_description: jobDescription,
+      });
 
-      if (isDemoMode) {
-        // Simulated network delay
-        await new Promise((res) => setTimeout(res, 2200));
-        result = {
-          ...MOCK_ANALYSIS_RESULT,
-          file_name: resumeFile ? resumeFile.name : MOCK_ANALYSIS_RESULT.file_name,
-          candidate_name: resumeFile
-            ? resumeFile.name.replace(/_Resume.*|\.pdf.*$/i, '').replace(/[-_]/g, ' ')
-            : MOCK_ANALYSIS_RESULT.candidate_name,
-        };
-      } else {
-        // Real API call to POST /analyze
-        result = await analysisApi.analyze({
-          file: resumeFile || undefined,
-          job_description: jobDescription,
-        });
-      }
-
-      clearInterval(stepInterval);
       setActiveResult(result);
       setSelectedMatchResult(result);
 
       // Save to history
       await historyApi.saveHistoryItem({
         id: `analysis-${Date.now()}`,
-        candidate_name: result.candidate_name || resumeFile?.name || 'Candidate',
-        file_name: result.file_name || resumeFile?.name || 'resume.pdf',
+        candidate_name: result.candidate_name || resumeFile.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '),
+        file_name: result.file_name || resumeFile.name,
         job_title: result.job_title || 'Position Evaluated',
         score: result.final_score,
         verdict: result.verdict,
@@ -167,18 +130,10 @@ export const AnalyzeView: React.FC = () => {
         result: result,
       });
     } catch (err: unknown) {
-      clearInterval(stepInterval);
       const apiErr = err as ApiError;
       setError({
-        message: apiErr.message || 'Analysis failed. Could not process resume against the job description.',
+        message: apiErr.message || 'Something went wrong while processing your request. Please try again.',
         status: apiErr.status,
-        error_code: apiErr.error_code,
-        details:
-          apiErr.status === 0
-            ? 'Backend is not running at http://localhost:8000. Start your FastAPI server with `uvicorn api.main:app --reload` or toggle "UI Demo Mode" in the sidebar to review the interface.'
-            : apiErr.status === 404
-            ? 'Endpoint POST /analyze not yet implemented on backend. (See FRONTEND_BACKEND_INTEGRATION.md for contract).'
-            : JSON.stringify(apiErr.details || {}),
       });
     } finally {
       setIsLoading(false);
@@ -212,31 +167,32 @@ export const AnalyzeView: React.FC = () => {
           One-to-One Resume Analysis
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Upload a candidate resume PDF and provide the target job description to generate detailed alignment scoring.
+          Upload a candidate resume and provide the target job description to generate detailed alignment scoring.
         </p>
       </div>
 
       {/* Error Alert */}
       {error && (
         <ErrorAlert
-          title="Analysis Could Not Complete"
+          title="Analysis Could Not Be Completed"
           message={error.message}
-          details={typeof error.details === 'string' ? error.details : undefined}
           onDismiss={() => setError(null)}
           onRetry={handleAnalyze}
         />
       )}
 
-      {/* Analysis Stepper during loading */}
+      {/* Loading State Banner */}
       {isLoading && (
-        <Card className="p-6 border-emerald-200 bg-emerald-50/20">
-          <h3 className="text-sm font-semibold text-slate-800 text-center mb-1">
-            Analyzing Resume Against Job Requirements...
-          </h3>
-          <p className="text-xs text-slate-500 text-center mb-4">
-            Executing NLP parsing, hybrid retrieval, and multi-factor scoring
-          </p>
-          <ProgressStepper steps={ANALYSIS_STEPS} currentStepIndex={currentStep} />
+        <Card className="p-8 border-emerald-200 bg-emerald-50/20 text-center">
+          <div className="flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
+            <h3 className="text-sm font-semibold text-slate-900">
+              Analyzing Resume Against Job Requirements...
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+              Extracting candidate information, matching skill requirements, and calculating overall compatibility. This may take a moment.
+            </p>
+          </div>
         </Card>
       )}
 
@@ -315,11 +271,11 @@ export const AnalyzeView: React.FC = () => {
             <div className="text-[11px] text-slate-500 space-y-1">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Text-based PDFs are automatically parsed by PyMuPDF</span>
+                <span>Text-based PDF documents are processed securely</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Extracts experience, education, and technical skills</span>
+                <span>Extracts professional experience, education, and skill profiles</span>
               </div>
             </div>
           </div>
@@ -328,26 +284,16 @@ export const AnalyzeView: React.FC = () => {
         {/* Section 2: Job Description Input */}
         <Card
           title="2. Target Job Description"
-          subtitle="Paste or load target role requirements"
+          subtitle="Paste target role requirements and qualifications"
           action={
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleLoadSampleJD}
-                className="text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200/60"
-                title="Load sample Machine Learning Engineer JD"
-              >
-                Sample JD
-              </button>
-              <button
-                type="button"
-                onClick={handlePasteFromClipboard}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded"
-                title="Paste from clipboard"
-              >
-                <Clipboard className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handlePasteFromClipboard}
+              className="p-1 text-slate-400 hover:text-slate-700 rounded"
+              title="Paste from clipboard"
+            >
+              <Clipboard className="w-3.5 h-3.5" />
+            </button>
           }
         >
           <div className="space-y-2">
@@ -382,7 +328,7 @@ export const AnalyzeView: React.FC = () => {
           variant="primary"
           onClick={handleAnalyze}
           isLoading={isLoading}
-          disabled={isLoading || (!resumeFile && !isDemoMode) || !jobDescription.trim()}
+          disabled={isLoading || !resumeFile || !jobDescription.trim()}
           rightIcon={<ArrowRight className="w-4 h-4" />}
         >
           Analyze Resume & Generate Report

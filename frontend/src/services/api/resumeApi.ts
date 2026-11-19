@@ -11,7 +11,7 @@ export interface UploadResumeResponse {
 export const resumeApi = {
   /**
    * Upload a single resume PDF
-   * Endpoint: POST /resumes (Proposed backend endpoint from Technical Audit §16)
+   * Endpoint: POST /resumes
    */
   async uploadResume(file: File): Promise<UploadResumeResponse> {
     const formData = new FormData();
