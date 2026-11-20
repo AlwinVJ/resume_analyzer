@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { CandidateScreeningResult, MatchVerdict } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
+import { STRONG_MATCH_MIN, MODERATE_MATCH_MIN } from '../../utils/verdict';
 import {
   Search,
   ArrowUpDown,
@@ -221,9 +222,9 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                         <div className="w-12 bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
-                              cand.score >= 75
+                              cand.score >= STRONG_MATCH_MIN
                                 ? 'bg-emerald-500'
-                                : cand.score >= 50
+                                : cand.score >= MODERATE_MATCH_MIN
                                 ? 'bg-amber-500'
                                 : 'bg-rose-500'
                             }`}
