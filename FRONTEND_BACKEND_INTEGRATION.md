@@ -219,7 +219,7 @@ The frontend's `screeningApi.ts` automatically extracts candidate names, normali
 
 #### Required Fields
 - `final_score`: number between 0.0 and 100.0.
-- `verdict`: `"Strong Match"` (>=75), `"Moderate Match"` (50–74), or `"Weak Match"` (<50).
+- `verdict`: `"Strong Match"` (>=80), `"Moderate Match"` (65–79.99), or `"Weak Match"` (<65). Thresholds are defined once in `get_verdict()` (`src/scoring/weighted_score.py`) and mirrored in `frontend/src/utils/verdict.ts`.
 - `breakdown`: object with `skill_overlap`, `semantic_similarity`, `experience_match`, `education_match`.
 - `skill_gap`: object with `matched_skills` (list of strings) and `missing_skills` (list of objects with `skill` and `importance`).
 

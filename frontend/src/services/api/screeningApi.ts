@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { CandidateScreeningResult, MatchVerdict } from '../../types';
+import { verdictForScore } from '../../utils/verdict';
 
 export interface RawCandidateResponse {
   candidate: string;
@@ -37,10 +38,7 @@ export const screeningApi = {
       const rawScore = c.score;
       const normalizedScore = rawScore > 1 ? Math.min(100, Math.round(rawScore)) : Math.round(rawScore * 100);
 
-      const verdict: MatchVerdict = c.verdict || (
-        normalizedScore >= 75 ? 'Strong Match' :
-        normalizedScore >= 50 ? 'Moderate Match' : 'Weak Match'
-      );
+      const verdict: MatchVerdict = c.verdict || verdictForScore(normalizedScore);
 
       const cleanFileName = c.candidate.replace(/^.*[\\/]/, '');
       const candidateName = c.candidate
@@ -79,10 +77,7 @@ export const screeningApi = {
     return (data.candidates || []).map((c, index) => {
       const rawScore = c.score;
       const normalizedScore = rawScore > 1 ? Math.min(100, Math.round(rawScore)) : Math.round(rawScore * 100);
-      const verdict: MatchVerdict = c.verdict || (
-        normalizedScore >= 75 ? 'Strong Match' :
-        normalizedScore >= 50 ? 'Moderate Match' : 'Weak Match'
-      );
+      const verdict: MatchVerdict = c.verdict || verdictForScore(normalizedScore);
 
       return {
         resume_id: `batch-${index + 1}-${c.candidate}`,

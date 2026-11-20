@@ -10,6 +10,7 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
+import { verdictForScore } from '../utils/verdict';
 import {
   UploadCloud,
   X,
@@ -92,7 +93,7 @@ export const BulkScreeningView: React.FC = () => {
           file_name: `Screening Batch (${results.length} candidates)`,
           job_title: 'Bulk Role Evaluation',
           score: avgScore,
-          verdict: avgScore >= 75 ? 'Strong Match' : avgScore >= 50 ? 'Moderate Match' : 'Weak Match',
+          verdict: verdictForScore(avgScore),
           date: new Date().toISOString().replace('T', ' ').substring(0, 16),
           type: 'bulk',
           result: topCandidate.match_result || {

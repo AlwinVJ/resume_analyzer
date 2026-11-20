@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
+import { STRONG_MATCH_MIN, MODERATE_MATCH_MIN } from '../../utils/verdict';
 
 export interface ScoreGaugeProps {
   score: number; // 0 to 100
@@ -34,7 +35,7 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
 
   // Determine color styling based on score
   const getColor = () => {
-    if (safeScore >= 75) {
+    if (safeScore >= STRONG_MATCH_MIN) {
       return {
         stroke: '#10b981', // emerald-500
         text: 'text-emerald-700',
@@ -42,7 +43,7 @@ export const ScoreGauge: React.FC<ScoreGaugeProps> = ({
         verdictDefault: 'Strong Match',
       };
     }
-    if (safeScore >= 50) {
+    if (safeScore >= MODERATE_MATCH_MIN) {
       return {
         stroke: '#f59e0b', // amber-500
         text: 'text-amber-700',
