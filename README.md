@@ -155,7 +155,7 @@ resume_analyzer/
 - **Internet access on first run.** The embedding model is downloaded from Hugging Face the first time it is used.
 - **[Ollama](https://ollama.com)**, only if you want to use the LLM JD parser or the skill engine. The screening API does not need it.
 
-### 1. Clone the repository
+### 1. Backend Setup
 
 ```bash
 git clone https://github.com/AlwinVJ/resume_analyzer.git
