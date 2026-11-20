@@ -206,7 +206,7 @@ Put resume PDFs in `data/resumes/`. Six synthetic sample resumes are already the
 ### 2. Build the index
 
 ```bash
-python -m tests.test_indexing_service
+python -m scripts.check_indexing_service
 ```
 
 This parses every PDF, embeds each section, and writes `storage/faiss_index.bin` and `storage/metadata.pkl`. It prints the number of resumes and chunks indexed. **Re-run it whenever you add, remove or change resumes.** The API does not detect a stale index.
@@ -375,17 +375,17 @@ The other files in `tests/` are scripts that print their results for manual insp
 
 | Script | Needs | Notes |
 |---|---|---|
-| `python -m tests.test_pdf_parser` | — | Extracts text from a sample PDF |
-| `python -m tests.test_resume_parser` | — | Prints parsed sections |
-| `python -m tests.test_resume_loader` | — | Parses every PDF in `data/resumes/` |
-| `python -m tests.test_job_description_parser` | — | Keyword JD parser |
-| `python -m tests.test_llm_validation` | — | LLM output validation rules |
-| `python -m tests.test_llm_normalization` | — | LLM output normalisation |
-| `python -m tests.test_job_description_parser_llm` | Ollama | Calls `llama3.1:8b` |
-| `python -m tests.test_indexing_service` | Model download | **Rebuilds `storage/`** |
-| `python -m tests.test_screening_service` | Model download, built index | Runs a sample screening |
+| `python -m scripts.check_pdf_parser` | — | Extracts text from a sample PDF |
+| `python -m scripts.check_resume_parser` | — | Prints parsed sections |
+| `python -m scripts.check_resume_loader` | — | Parses every PDF in `data/resumes/` |
+| `python -m scripts.check_job_description_parser` | — | Keyword JD parser |
+| `python -m scripts.check_llm_validation` | — | LLM output validation rules |
+| `python -m scripts.check_llm_normalization` | — | LLM output normalisation |
+| `python -m scripts.check_job_description_parser_llm` | Ollama | Calls `llama3.1:8b` |
+| `python -m scripts.check_indexing_service` | Model download | **Rebuilds `storage/`** |
+| `python -m scripts.check_screening_service` | Model download, built index | Runs a sample screening |
 
-> ⚠️ Avoid running plain `pytest` on the whole folder for now. Collecting the script files executes them, which rebuilds the index and calls Ollama.
+> ⚠️ > Run `pytest` from the repository root to run every automated test. It works offline.
 
 ---
 
