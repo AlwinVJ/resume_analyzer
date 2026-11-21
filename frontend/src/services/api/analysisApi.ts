@@ -8,7 +8,7 @@ export interface AnalyzeRequest {
 
 export const analysisApi = {
   /**
-   * Run 1:1 analysis comparing a resume against a job description
+   * Run a single resume analysis comparing a resume against a job description
    * Endpoint: POST /analyze
    *
    * Accepts either an existing resume_id or a direct file upload multipart request.

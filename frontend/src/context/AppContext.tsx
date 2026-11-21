@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
-import { MatchResult, CandidateScreeningResult } from '../types';
+import { MatchResult, CandidateScreeningResult, AnalysisHistoryItem } from '../types';
 
-export type NavigationTab = 'dashboard' | 'analyze' | 'screening' | 'history' | 'candidate-detail';
+export type NavigationTab = 'dashboard' | 'analyze' | 'screening' | 'history' | 'candidate-detail' | 'history-session';
 
 interface AppContextType {
   currentTab: NavigationTab;
@@ -10,7 +10,13 @@ interface AppContextType {
   setSelectedMatchResult: (result: MatchResult | null) => void;
   selectedCandidate: CandidateScreeningResult | null;
   setSelectedCandidate: (candidate: CandidateScreeningResult | null) => void;
-  navigateToCandidateDetail: (candidate: CandidateScreeningResult, result?: MatchResult) => void;
+  selectedHistorySession: AnalysisHistoryItem | null;
+  setSelectedHistorySession: (session: AnalysisHistoryItem | null) => void;
+  candidateDetailReturnTab: NavigationTab;
+  setCandidateDetailReturnTab: (tab: NavigationTab) => void;
+  openHistorySession: (item: AnalysisHistoryItem) => void;
+  openMatchResult: (result: MatchResult, returnTab?: NavigationTab) => void;
+  navigateToCandidateDetail: (candidate: CandidateScreeningResult, result?: MatchResult, returnTab?: NavigationTab) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -19,8 +25,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
   const [selectedMatchResult, setSelectedMatchResult] = useState<MatchResult | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateScreeningResult | null>(null);
+  const [selectedHistorySession, setSelectedHistorySession] = useState<AnalysisHistoryItem | null>(null);
+  const [candidateDetailReturnTab, setCandidateDetailReturnTab] = useState<NavigationTab>('screening');
 
-  const navigateToCandidateDetail = (candidate: CandidateScreeningResult, result?: MatchResult) => {
+  const openHistorySession = (item: AnalysisHistoryItem) => {
+    setSelectedHistorySession(item);
+    setSelectedCandidate(null);
+    setSelectedMatchResult(null);
+    setCurrentTab('history-session');
+  };
+
+  const openMatchResult = (result: MatchResult, returnTab: NavigationTab = 'history-session') => {
+    setSelectedCandidate(null);
+    setSelectedMatchResult(result);
+    setCandidateDetailReturnTab(returnTab);
+    setCurrentTab('candidate-detail');
+  };
+
+  const navigateToCandidateDetail = (
+    candidate: CandidateScreeningResult,
+    result?: MatchResult,
+    returnTab: NavigationTab = 'screening'
+  ) => {
     setSelectedCandidate(candidate);
     if (result) {
       setSelectedMatchResult(result);
@@ -29,6 +55,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setSelectedMatchResult(null);
     }
+    setCandidateDetailReturnTab(returnTab);
     setCurrentTab('candidate-detail');
   };
 
@@ -41,6 +68,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedMatchResult,
         selectedCandidate,
         setSelectedCandidate,
+        selectedHistorySession,
+        setSelectedHistorySession,
+        candidateDetailReturnTab,
+        setCandidateDetailReturnTab,
+        openHistorySession,
+        openMatchResult,
         navigateToCandidateDetail,
       }}
     >

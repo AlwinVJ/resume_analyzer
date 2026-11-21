@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const HistoryView: React.FC = () => {
-  const { setCurrentTab, setSelectedMatchResult } = useApp();
+  const { setCurrentTab, openHistorySession } = useApp();
   const [historyItems, setHistoryItems] = useState<AnalysisHistoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk'>('all');
@@ -37,8 +37,7 @@ export const HistoryView: React.FC = () => {
   }, []);
 
   const handleOpenItem = (item: AnalysisHistoryItem) => {
-    setSelectedMatchResult(item.result);
-    setCurrentTab('candidate-detail');
+    openHistorySession(item);
   };
 
   const handleDeleteItem = async (e: React.MouseEvent, id: string) => {
@@ -115,8 +114,8 @@ export const HistoryView: React.FC = () => {
               className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="all">All Types</option>
-              <option value="single">Single (1:1)</option>
-              <option value="bulk">Bulk (1:N)</option>
+              <option value="single">Single Analysis</option>
+              <option value="bulk">Bulk Screening</option>
             </select>
           </div>
 
@@ -161,7 +160,7 @@ export const HistoryView: React.FC = () => {
                       {item.candidate_name}
                     </h3>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold uppercase">
-                      {item.type === 'single' ? '1:1 Match' : 'Bulk Screening'}
+                      {item.type === 'single' ? 'Single Analysis' : 'Bulk Screening'}
                     </span>
                   </div>
 

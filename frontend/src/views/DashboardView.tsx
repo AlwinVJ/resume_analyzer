@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { setCurrentTab, setSelectedMatchResult } = useApp();
+  const { setCurrentTab, openHistorySession } = useApp();
   const [stats, setStats] = useState<DashboardStats>({
     totalAnalyzed: 0,
     totalScreeningSessions: 0,
@@ -50,8 +50,7 @@ export const DashboardView: React.FC = () => {
   }, []);
 
   const handleOpenAnalysis = (item: AnalysisHistoryItem) => {
-    setSelectedMatchResult(item.result);
-    setCurrentTab('candidate-detail');
+    openHistorySession(item);
   };
 
   return (
@@ -76,7 +75,7 @@ export const DashboardView: React.FC = () => {
               onClick={() => setCurrentTab('analyze')}
               leftIcon={<FileSearch className="w-4 h-4" />}
             >
-              Analyze Resume (1:1)
+              Analyze Resume
             </Button>
             <Button
               variant="outline"
@@ -84,7 +83,7 @@ export const DashboardView: React.FC = () => {
               leftIcon={<Users className="w-4 h-4" />}
               className="bg-slate-800/80 text-white border-slate-600 hover:bg-slate-700"
             >
-              Bulk Screening (1:N)
+              Bulk Screening
             </Button>
           </div>
         </div>
@@ -162,7 +161,7 @@ export const DashboardView: React.FC = () => {
             <div className="w-10 h-10 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center mb-4">
               <FileSearch className="w-5 h-5" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">One-to-One Resume Analysis</h3>
+            <h3 className="text-lg font-bold text-slate-900">Resume Analysis</h3>
             <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
               Upload a candidate PDF resume and compare it against target job requirements. Receive detailed alignment scoring, verified skill overlap, and gap recommendations.
             </p>
@@ -259,7 +258,7 @@ export const DashboardView: React.FC = () => {
         ) : (
           <EmptyState
             title="No Analysis Activity Yet"
-            description="Upload a resume for one-to-one analysis or run bulk candidate screening to begin generating match intelligence."
+            description="Upload a resume for analysis or run bulk candidate screening to begin generating match intelligence."
             actionText="Analyze First Resume"
             onAction={() => setCurrentTab('analyze')}
           />

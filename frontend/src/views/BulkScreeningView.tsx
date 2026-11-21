@@ -85,7 +85,6 @@ export const BulkScreeningView: React.FC = () => {
       // Save summary record in history if results found
       if (results.length > 0) {
         const avgScore = Math.round(results.reduce((acc, c) => acc + c.score, 0) / results.length);
-        const topCandidate = results[0];
 
         await historyApi.saveHistoryItem({
           id: `screening-${Date.now()}`,
