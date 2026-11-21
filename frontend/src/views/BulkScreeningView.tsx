@@ -86,43 +86,22 @@ export const BulkScreeningView: React.FC = () => {
       if (results.length > 0) {
         const avgScore = Math.round(results.reduce((acc, c) => acc + c.score, 0) / results.length);
 
-        await historyApi.saveHistoryItem({
-          id: `screening-${Date.now()}`,
-          candidate_name: `${results.length} Candidates Screened`,
-          file_name: `Screening Batch (${results.length} candidates)`,
-          job_title: 'Bulk Role Evaluation',
-          score: avgScore,
-          verdict: verdictForScore(avgScore),
-          date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          type: 'bulk',
-          result: topCandidate.match_result || {
-            final_score: topCandidate.score,
-            verdict: topCandidate.verdict,
-            candidate_name: topCandidate.candidate_name,
-            file_name: topCandidate.file_name,
-            job_title: 'Screening Evaluation',
-            summary: `Candidate ranked #${1} in screening session with a score of ${topCandidate.score}%.`,
-            breakdown: {
-              skill_overlap: Math.round(topCandidate.score * 0.4),
-              semantic_similarity: Math.round(topCandidate.score * 0.3),
-              experience_match: Math.round(topCandidate.score * 0.2),
-              education_match: Math.round(topCandidate.score * 0.1),
-            },
-            insights: [`Candidate achieved rank #1 in the screening batch.`],
-            skill_gap: {
-              resume_skills: topCandidate.matched_skills,
-              jd_skills: [...topCandidate.matched_skills, ...topCandidate.missing_skills],
-              matched_skills: topCandidate.matched_skills,
-              missing_skills: topCandidate.missing_skills.map((s) => ({ skill: s, importance: 0.8 })),
-              uncertain_skills: [],
-              overlap_ratio: topCandidate.score / 100,
-              gap_count: topCandidate.missing_skills.length,
-            },
-            evidence: [],
-            recommendations: [],
-            created_at: new Date().toISOString(),
-          },
-        });
+                try {
+          await historyApi.saveHistoryItem({
+            id: `screening-${Date.now()}`,
+            candidate_name: `${results.length} Candidates Screened`,
+            file_name: `Screening Batch (${results.length} candidates)`,
+            job_title: 'Bulk Role Evaluation',
+            score: avgScore,
+            verdict: verdictForScore(avgScore),
+            date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            type: 'bulk',
+            candidates: results,
+            job_description_snippet: jobDescription.trim().slice(0, 160),
+          });
+        } catch (saveErr) {
+          console.warn('Failed to save screening history record:', saveErr);
+        }
       }
     } catch (err: unknown) {
       const apiErr = err as ApiError;
