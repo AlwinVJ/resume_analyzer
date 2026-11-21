@@ -15,11 +15,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
       case 'dashboard':
         return 'Dashboard & Overview';
       case 'analyze':
-        return 'One-to-One Resume Analysis';
+        return 'Resume Analysis';
       case 'screening':
         return 'Bulk Candidate Screening';
       case 'history':
         return 'Analysis Records & History';
+      case 'history-session':
+        return 'Analysis Session';
       case 'candidate-detail':
         return 'Candidate Match Report';
       default:

@@ -32,9 +32,21 @@ export const historyApi = {
     }
 
     // Always keep local storage in sync
-    const current = this.getLocalHistory();
-    const updated = [item, ...current.filter((x) => x.id !== item.id)];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.slice(0, 50)));
+    try {
+      const current = this.getLocalHistory();
+      const updated = [item, ...current.filter((x) => x.id !== item.id)];
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.slice(0, 50)));
+      } catch {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.slice(0, 20)));
+        } catch (retryErr) {
+          console.warn('Failed to save analysis history to localStorage:', retryErr);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to update local history storage:', err);
+    }
   },
 
   /**

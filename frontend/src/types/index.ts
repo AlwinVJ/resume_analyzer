@@ -138,7 +138,9 @@ export interface AnalysisHistoryItem {
   verdict: MatchVerdict;
   date: string;
   type: 'single' | 'bulk';
-  result: MatchResult;
+  result?: MatchResult;
+  candidates?: CandidateScreeningResult[];
+  job_description_snippet?: string;
 }
 
 // API Error representation

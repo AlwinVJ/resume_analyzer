@@ -29,13 +29,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       id: 'analyze',
       label: 'Analyze Resume',
       icon: <FileSearch className="w-4 h-4" />,
-      badge: '1:1',
     },
     {
       id: 'screening',
       label: 'Bulk Screening',
       icon: <Users className="w-4 h-4" />,
-      badge: '1:N',
     },
     {
       id: 'history',
@@ -99,7 +97,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
             Main Menu
           </div>
           {navItems.map((item) => {
-            const isActive = currentTab === item.id;
+            const isActive =
+              item.id === 'history'
+                ? currentTab === 'history' || currentTab === 'history-session'
+                : currentTab === item.id;
             return (
               <button
                 key={item.id}

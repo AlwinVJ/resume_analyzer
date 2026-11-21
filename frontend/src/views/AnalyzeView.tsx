@@ -128,6 +128,7 @@ export const AnalyzeView: React.FC = () => {
         date: new Date().toISOString().replace('T', ' ').substring(0, 16),
         type: 'single',
         result: result,
+        job_description_snippet: jobDescription.trim().slice(0, 160),
       });
     } catch (err: unknown) {
       const apiErr = err as ApiError;
@@ -164,7 +165,7 @@ export const AnalyzeView: React.FC = () => {
       {/* Page Header */}
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-          One-to-One Resume Analysis
+          Resume Analysis
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Upload a candidate resume and provide the target job description to generate detailed alignment scoring.

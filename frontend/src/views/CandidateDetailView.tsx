@@ -12,12 +12,15 @@ export const CandidateDetailView: React.FC = () => {
     setCurrentTab,
     setSelectedMatchResult,
     setSelectedCandidate,
+    candidateDetailReturnTab,
   } = useApp();
 
   const handleBack = () => {
-    setSelectedMatchResult(null);
-    setSelectedCandidate(null);
-    setCurrentTab('screening');
+    if (candidateDetailReturnTab === 'screening') {
+      setSelectedMatchResult(null);
+      setSelectedCandidate(null);
+    }
+    setCurrentTab(candidateDetailReturnTab);
   };
 
   const getCandidateResult = (): MatchResult | null => {
