@@ -66,14 +66,14 @@ jd_text = "Looking for a Data Scientist with Python, SQL, Docker, and Kubernetes
 1. Create a `.env` file in the project root:
    ```env
    GROQ_API_KEY=your_groq_api_key_here
-   GROQ_MODEL=llama-3.3-70b-versatile
+   GROQ_MODEL=openai/gpt-oss-120b
    ```
 
 2. Run in Python:
    ```python
    from src.skill_engine import SkillPipeline
 
-   pipeline = SkillPipeline()  # Automatically uses Groq with llama-3.3-70b-versatile
+   pipeline = SkillPipeline()  # Automatically uses Groq with GROQ_MODEL (default openai/gpt-oss-120b)
    report = pipeline.run(resume_sections, jd_text)
    print(report.to_dict())
    ```

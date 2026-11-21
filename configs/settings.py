@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -21,10 +22,18 @@ class Settings(BaseSettings):
     DATA_DIR: Path = PROJECT_ROOT / "data" / "resumes"
     STORAGE_DIR: Path = PROJECT_ROOT / "storage"
 
-    # --- LLM (Ollama) ---
-    LLM_BASE_URL: str = "http://localhost:11434"
-    LLM_MODEL: str = "qwen2.5:3b"
-    LLM_TIMEOUT_S: int = 120
+    # --- LLM (Groq, OpenAI-compatible API) ---
+    # The key is a SecretStr so it never shows up when settings are printed or logged.
+    GROQ_API_KEY: SecretStr | None = None
+    # llama-3.3-70b-versatile was shut down on the free tier on 2026-08-16; Groq recommends gpt-oss-120b.
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+    LLM_TEMPERATURE: float = 0.1
+    LLM_TIMEOUT_S: int = 60
+    LLM_MAX_TOKENS: int = 4096        # cap on the reply length incl. reasoning (Groq: max_completion_tokens)
+    LLM_REASONING_EFFORT: str = "low" # gpt-oss models only: low | medium | high
+    LLM_MAX_RETRIES: int = 2          # extra attempts after a 429 / 5xx / network error
+    LLM_MAX_RETRY_WAIT_S: float = 20  # if Groq asks us to wait longer than this, fail fast
 
     # --- API ---
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

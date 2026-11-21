@@ -5,6 +5,7 @@ from src.skill_engine.schemas import ExtractedResumeSkill
 from src.skill_engine.input_handler import format_descriptive_text_for_llm
 from src.skill_engine.normalizer import normalize_skill
 from src.skill_engine.llm_provider import strip_markdown
+from src.schemas.errors import LLMOutputInvalidError, LLMUnavailableError
 
 # Delimiters used in resumes to separate skills
 DELIMITERS = re.compile(r"[,;|\n•·*]+")
@@ -83,6 +84,9 @@ def extract_llm_skills(descriptive_sections: dict, llm_client) -> list:
             elif isinstance(item, str) and item.strip():
                 skills.append(ExtractedResumeSkill(name=item.strip()))
         return skills
+    except (LLMUnavailableError, LLMOutputInvalidError):
+        raise  # an AI outage must not look like "no skills found"
+    
     except Exception:
         return []
 

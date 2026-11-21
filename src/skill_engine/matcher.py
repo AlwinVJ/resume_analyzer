@@ -2,6 +2,7 @@ import json
 from src.skill_engine.normalizer import normalize_skill, normalize_skills
 from src.skill_engine.prompts import build_verification_prompt
 from src.skill_engine.llm_provider import strip_markdown
+from src.schemas.errors import LLMOutputInvalidError, LLMUnavailableError
 
 
 # Compare resume skills directly with JD requirements
@@ -65,6 +66,9 @@ def verify_unmatched(unmatched_requirements: list, resume_context: str, llm_clie
                 verified_uncertain.append(req)
             else:
                 verified_missing.append(req)
+    
+    except (LLMUnavailableError, LLMOutputInvalidError):
+        raise  # an AI outage must fail the analysis, not quietly change the result
 
     except Exception:
         # If verification fails, mark skills as uncertain instead of missing

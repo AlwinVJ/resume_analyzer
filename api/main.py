@@ -6,9 +6,9 @@ from api.schemas import (
     CandidateResponse
 )
 from configs.settings import settings
-
+from api.errors import register_error_handlers
 from src.services.screening_service import ScreeningService
-
+from configs.settings import settings
 
 app = FastAPI(
     title="Resume Analyzer API"
@@ -22,6 +22,7 @@ app.add_middleware(
     allow_headers = ["*"],
 )
 
+register_error_handlers(app)
 
 @app.get("/")
 def root():
