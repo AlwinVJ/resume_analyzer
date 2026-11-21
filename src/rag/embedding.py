@@ -1,7 +1,15 @@
 from sentence_transformers import SentenceTransformer
-from numpy import ndarray
+import numpy as np
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+from configs.settings import MODEL_NAME
+from src.utils.logger import logger
 
-def get_embedding(text: str) -> ndarray:
-    return model.encode(text)
+class EmbeddingModel:
+    def __init__(self):
+        logger.info(f"Loading embedding model")
+        self.model = SentenceTransformer(MODEL_NAME)
+    
+    def encode(self, texts):
+        logger.info("Generating embeddings")
+        embeddings = self.model.encode(texts)
+        return np.array(embeddings).astype('float32')
