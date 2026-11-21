@@ -13,15 +13,15 @@ from src.skill_engine.jd_extractor import extract_jd_skills
 from src.skill_engine.normalizer import normalize_skill
 from src.skill_engine.matcher import match_exact, verify_unmatched
 from src.skill_engine.gap_report import generate_skill_gap_report
-from src.skill_engine.llm_provider import OllamaProvider
+from src.skill_engine.llm_provider import GroqProvider
 from src.skill_engine.schemas import SkillGapReport
 
 
 # Main pipeline comparing resume skills against a job description
 class SkillPipeline:
     def __init__(self, llm_client=None, model: str = None, **kwargs):
-        # Uses local Ollama qwen2.5:3b by default
-        self.llm = llm_client or OllamaProvider(model=model, **kwargs)
+        # Uses Groq API with llama-3.3-70b-versatile by default
+        self.llm = llm_client or GroqProvider(model=model, **kwargs)
 
     # Run the full skill extraction, matching, and gap report workflow
     def run(self, resume_sections, jd_text: str) -> SkillGapReport:
@@ -65,4 +65,3 @@ class SkillPipeline:
             requirement_map=req_map,
             evidence_map=merged.get("evidence_map", {}),
         )
-
