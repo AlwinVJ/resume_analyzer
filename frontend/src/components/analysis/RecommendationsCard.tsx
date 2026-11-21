@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../common/Card';
-import { Lightbulb, ArrowRight, Target } from 'lucide-react';
+import { Lightbulb, ArrowRight } from 'lucide-react';
 
 export interface RecommendationsCardProps {
   recommendations: string[];
@@ -36,9 +36,8 @@ export const RecommendationsCard: React.FC<RecommendationsCardProps> = ({
             </div>
           ))
         ) : (
-          <div className="flex items-center gap-2 text-xs text-slate-400 italic">
-            <Target className="w-4 h-4 text-emerald-500" />
-            <span>Profile is strongly optimized. No critical gaps identified.</span>
+          <div className="p-3 text-xs text-slate-500 italic">
+            <span>No recommendations were generated for this analysis.</span>
           </div>
         )}
       </div>

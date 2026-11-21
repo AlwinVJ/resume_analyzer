@@ -63,7 +63,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
-              {result.job_title && (
+              {result.job_title && !result.job_title.toLowerCase().startsWith('screening eval') && (
                 <span className="flex items-center gap-1 font-medium text-slate-700">
                   <Briefcase className="w-3.5 h-3.5 text-slate-400" />
                   {result.job_title}
@@ -163,6 +163,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
             verdict={result.verdict}
             summary={result.summary}
             breakdown={result.breakdown}
+            breakdownMax={result.breakdown_max}
             insights={result.insights}
           />
 
@@ -173,6 +174,8 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
 
       {(activeTab === 'all' || activeTab === 'experience') && (
         <ExperienceEducationCard
+          experience={result.experience}
+          education={result.education}
           experienceYears={result.experience_years}
           educationLevel={result.education_level}
         />

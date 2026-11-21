@@ -1,7 +1,9 @@
 import React from 'react';
 import { CandidateScreeningResult } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { Button } from '../common/Button';
+import { formatDuration } from '../../utils/experience';
 import { ChevronRight, Briefcase, GraduationCap } from 'lucide-react';
 
 export interface CandidateCardProps {
@@ -68,18 +70,33 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               <Briefcase className="w-3.5 h-3.5" />
               Experience
             </span>
-            <span className="font-medium text-slate-800">
-              {candidate.experience_years ? `${candidate.experience_years} Years` : 'Relevant'}
-            </span>
+            <div className="text-right flex items-center gap-2">
+              {typeof candidate.experience_years === 'number' && (
+                <span className="text-[11px] text-slate-500">
+                  {formatDuration(Math.round(candidate.experience_years * 12))}
+                </span>
+              )}
+              <CompatibilityBadge
+                level={candidate.experience_compatibility}
+                plainTextIfNull
+                fallbackText="Not evaluated"
+                size="sm"
+              />
+            </div>
           </div>
           <div className="flex items-center justify-between py-1">
             <span className="text-slate-400 flex items-center gap-1">
               <GraduationCap className="w-3.5 h-3.5" />
               Education
             </span>
-            <span className="font-medium text-slate-800">
-              {candidate.education_compatibility || 'Satisfied'}
-            </span>
+            <div>
+              <CompatibilityBadge
+                level={candidate.education_compatibility}
+                plainTextIfNull
+                fallbackText="Not evaluated"
+                size="sm"
+              />
+            </div>
           </div>
         </div>
       </div>

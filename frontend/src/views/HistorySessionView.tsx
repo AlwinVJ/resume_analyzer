@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { CandidateScreeningResult } from '../types';
 import { Card } from '../components/common/Card';
@@ -29,6 +29,24 @@ export const HistorySessionView: React.FC = () => {
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [candidatesToCompare, setCandidatesToCompare] = useState<CandidateScreeningResult[]>([]);
 
+  const isBulk = selectedHistorySession?.type === 'bulk';
+  const hasCandidates = isBulk && Array.isArray(selectedHistorySession?.candidates);
+  const candidateCount = hasCandidates ? selectedHistorySession!.candidates!.length : 0;
+
+  // In records saved before schema_version 2, experience_compatibility and education_compatibility were fabricated.
+  // Display them as null ("Not evaluated") at render time.
+  const displayCandidates = useMemo(() => {
+    if (!selectedHistorySession?.candidates) return [];
+    const isV2 = (selectedHistorySession.schema_version ?? 1) >= 2;
+    if (isV2) return selectedHistorySession.candidates;
+
+    return selectedHistorySession.candidates.map((c) => ({
+      ...c,
+      experience_compatibility: null,
+      education_compatibility: null,
+    }));
+  }, [selectedHistorySession]);
+
   if (!selectedHistorySession) {
     return (
       <EmptyState
@@ -40,10 +58,6 @@ export const HistorySessionView: React.FC = () => {
       />
     );
   }
-
-  const isBulk = selectedHistorySession.type === 'bulk';
-  const hasCandidates = isBulk && Array.isArray(selectedHistorySession.candidates);
-  const candidateCount = hasCandidates ? selectedHistorySession.candidates!.length : 0;
 
   return (
     <div className="space-y-6">
@@ -149,7 +163,7 @@ export const HistorySessionView: React.FC = () => {
               </div>
 
               <CandidateTable
-                candidates={selectedHistorySession.candidates!}
+                candidates={displayCandidates}
                 onSelectCandidate={(c) => navigateToCandidateDetail(c, undefined, 'history-session')}
                 onCompareCandidates={(candidates) => {
                   setCandidatesToCompare(candidates);

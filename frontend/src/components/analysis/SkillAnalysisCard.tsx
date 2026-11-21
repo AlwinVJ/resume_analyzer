@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from '../common/Card';
 import { SkillBadge } from '../common/SkillBadge';
-import { SkillGapReport } from '../../types';
+import { SkillGapReport, MissingSkill } from '../../types';
 import { Check, Copy, AlertTriangle, Layers } from 'lucide-react';
 
 export interface SkillAnalysisCardProps {
@@ -21,8 +21,14 @@ export const SkillAnalysisCard: React.FC<SkillAnalysisCardProps> = ({ skillGap }
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const requiredMissing = skillGap.missing_skills.filter((s) => s.type === 'required' || s.importance >= 0.8);
-  const preferredMissing = skillGap.missing_skills.filter((s) => s.type === 'preferred' || s.importance < 0.8);
+  const isRequired = (s: MissingSkill) => {
+    if (s.type === 'required') return true;
+    if (s.type === 'preferred') return false;
+    return s.importance >= 0.8;
+  };
+
+  const requiredMissing = skillGap.missing_skills.filter(isRequired);
+  const preferredMissing = skillGap.missing_skills.filter((s) => !isRequired(s));
 
   return (
     <Card

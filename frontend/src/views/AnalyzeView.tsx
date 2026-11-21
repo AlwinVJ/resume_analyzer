@@ -7,6 +7,7 @@ import { AnalysisResultView } from '../components/analysis/AnalysisResultView';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { ErrorAlert } from '../components/common/ErrorAlert';
+import { ElapsedTime } from '../components/common/ElapsedTime';
 import {
   UploadCloud,
   X,
@@ -183,6 +184,7 @@ export const AnalyzeView: React.FC = () => {
       )}
 
       {/* Loading State Banner */}
+      {/* Real stage-by-stage progress would require backend progress streaming */}
       {isLoading && (
         <Card className="p-8 border-emerald-200 bg-emerald-50/20 text-center">
           <div className="flex flex-col items-center justify-center">
@@ -193,6 +195,7 @@ export const AnalyzeView: React.FC = () => {
             <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
               Extracting candidate information, matching skill requirements, and calculating overall compatibility. This may take a moment.
             </p>
+            <ElapsedTime fileName={resumeFile?.name} />
           </div>
         </Card>
       )}

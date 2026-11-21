@@ -17,6 +17,7 @@ export const analysisApi = {
     resume_id?: string;
     file?: File;
     job_description: string;
+    signal?: AbortSignal;
   }): Promise<MatchResult> {
     if (params.file) {
       const formData = new FormData();
@@ -25,12 +26,16 @@ export const analysisApi = {
       if (params.resume_id) {
         formData.append('resume_id', params.resume_id);
       }
-      return apiClient.post<MatchResult>('/analyze', formData);
+      return apiClient.post<MatchResult>('/analyze', formData, { signal: params.signal });
     }
 
-    return apiClient.post<MatchResult>('/analyze', {
-      resume_id: params.resume_id,
-      job_description: params.job_description,
-    });
+    return apiClient.post<MatchResult>(
+      '/analyze',
+      {
+        resume_id: params.resume_id,
+        job_description: params.job_description,
+      },
+      { signal: params.signal }
+    );
   },
 };

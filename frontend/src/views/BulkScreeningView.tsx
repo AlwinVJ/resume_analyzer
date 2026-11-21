@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { screeningApi } from '../services/api/screeningApi';
+import { analysisApi } from '../services/api/analysisApi';
 import { historyApi } from '../services/api/historyApi';
-import { CandidateScreeningResult, ApiError } from '../types';
+import { CandidateScreeningResult, ApiError, MatchResult } from '../types';
 import { CandidateTable } from '../components/screening/CandidateTable';
 import { CandidateCard } from '../components/screening/CandidateCard';
 import { CandidateCompareModal } from '../components/screening/CandidateCompareModal';
@@ -10,18 +11,31 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
+import { CircularProgress } from '../components/common/CircularProgress';
+import { ElapsedTime } from '../components/common/ElapsedTime';
 import { verdictForScore } from '../utils/verdict';
+import { monthsFromResult } from '../utils/experience';
 import {
   UploadCloud,
   X,
   Users,
   ArrowRight,
   Database,
-  LayoutGrid,
   List,
-  RotateCcw,
+  LayoutGrid,
   Loader2,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
+
+export const BULK_ANALYZE_CONCURRENCY = 1;
+
+interface FileBatchItem {
+  file: File;
+  status: 'waiting' | 'analyzing' | 'done' | 'failed';
+  error?: string;
+  result?: MatchResult;
+}
 
 export const BulkScreeningView: React.FC = () => {
   const { navigateToCandidateDetail } = useApp();
@@ -36,18 +50,31 @@ export const BulkScreeningView: React.FC = () => {
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [candidatesToCompare, setCandidatesToCompare] = useState<CandidateScreeningResult[]>([]);
 
+  // Batch progress state
+  const [batchItems, setBatchItems] = useState<FileBatchItem[]>([]);
+  const [failedList, setFailedList] = useState<{ fileName: string; reason: string }[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Clean up any in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files).filter((file) =>
-        file.name.toLowerCase().endsWith('.pdf')
-      );
+      const newFiles = Array.from(e.target.files);
       setFiles((prev) => [...prev, ...newFiles]);
     }
   };
 
   const handleRemoveFile = (index: number) => {
+    if (isLoading) return;
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -67,48 +94,184 @@ export const BulkScreeningView: React.FC = () => {
     }
 
     setError(null);
+    setFailedList([]);
     setIsLoading(true);
 
-    try {
-      let results: CandidateScreeningResult[];
+    if (usePreIndexedCorpus) {
+      // Single request to candidate pool
+      try {
+        const results = await screeningApi.screen(jobDescription, 10);
+        setCandidates(results);
 
-      if (usePreIndexedCorpus) {
-        // Hit backend POST /screen endpoint
-        results = await screeningApi.screen(jobDescription, 10);
-      } else {
-        // Hit backend POST /screen/batch with uploaded files
-        results = await screeningApi.screenFiles(files, jobDescription);
+        if (results.length > 0) {
+          const avgScore = Math.round(results.reduce((acc, c) => acc + c.score, 0) / results.length);
+          try {
+            await historyApi.saveHistoryItem({
+              id: `screening-${Date.now()}`,
+              candidate_name: `${results.length} Candidates Screened`,
+              file_name: `Screening Batch (${results.length} candidates)`,
+              job_title: 'Bulk Role Evaluation',
+              score: avgScore,
+              verdict: verdictForScore(avgScore),
+              date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              type: 'bulk',
+              candidates: results,
+              job_description_snippet: jobDescription.trim().slice(0, 160),
+              schema_version: 2,
+            });
+          } catch (saveErr) {
+            console.warn('Failed to save screening history record:', saveErr);
+          }
+        }
+      } catch (err: unknown) {
+        const apiErr = err as ApiError;
+        setError({
+          message: apiErr.message || 'Candidate screening is temporarily unavailable. Please try again later.',
+          status: apiErr.status,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // "Upload Files" mode: sequential per-file POST /analyze
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Pre-flight file validation
+    const initialBatch: FileBatchItem[] = files.map((file) => {
+      const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+      const sizeOk = file.size <= 10 * 1024 * 1024;
+
+      if (!isPdf) {
+        return {
+          file,
+          status: 'failed',
+          error: 'This file format is not supported. Please upload a valid PDF document.',
+        };
+      }
+      if (!sizeOk) {
+        return {
+          file,
+          status: 'failed',
+          error: 'The uploaded file exceeds the 10MB limit.',
+        };
+      }
+      return {
+        file,
+        status: 'waiting',
+      };
+    });
+
+    setBatchItems(initialBatch);
+
+    const successfulCandidates: CandidateScreeningResult[] = [];
+    const localFailedList: { fileName: string; reason: string }[] = [];
+
+    // Collect pre-flight failures immediately
+    initialBatch.forEach((item) => {
+      if (item.status === 'failed') {
+        localFailedList.push({ fileName: item.file.name, reason: item.error || 'Invalid file format' });
+      }
+    });
+
+    try {
+      for (let i = 0; i < initialBatch.length; i++) {
+        if (controller.signal.aborted) break;
+
+        const currentItem = initialBatch[i];
+        if (currentItem.status === 'failed') continue;
+
+        // Set status to analyzing
+        setBatchItems((prev) =>
+          prev.map((item, idx) => (idx === i ? { ...item, status: 'analyzing' } : item))
+        );
+
+        try {
+          const result = await analysisApi.analyze({
+            file: currentItem.file,
+            job_description: jobDescription,
+            signal: controller.signal,
+          });
+
+          if (controller.signal.aborted) break;
+
+          // Mark done
+          setBatchItems((prev) =>
+            prev.map((item, idx) => (idx === i ? { ...item, status: 'done', result } : item))
+          );
+
+          const candidateName =
+            result.candidate_name ||
+            currentItem.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+          const expMonths = monthsFromResult(result);
+
+          successfulCandidates.push({
+            resume_id: `upload-${i}-${currentItem.file.name}`,
+            file_name: currentItem.file.name,
+            candidate_name: candidateName,
+            score: result.final_score,
+            verdict: result.verdict,
+            matched_skills: result.skill_gap?.matched_skills || [],
+            missing_skills: result.skill_gap?.missing_skills?.map((s) => s.skill) || [],
+            experience_years: expMonths !== null ? expMonths / 12 : null,
+            experience_compatibility: result.experience?.compatibility ?? null,
+            education_compatibility: result.education?.compatibility ?? null,
+            match_result: result,
+          });
+        } catch (err: unknown) {
+          if (controller.signal.aborted) break;
+
+          const apiErr = err as ApiError;
+          const reason = apiErr.message || 'Analysis could not be completed for this file.';
+          localFailedList.push({ fileName: currentItem.file.name, reason });
+
+          setBatchItems((prev) =>
+            prev.map((item, idx) =>
+              idx === i ? { ...item, status: 'failed', error: reason } : item
+            )
+          );
+        }
       }
 
-      setCandidates(results);
+      if (controller.signal.aborted) {
+        return;
+      }
 
-      // Save summary record in history if results found
-      if (results.length > 0) {
-        const avgScore = Math.round(results.reduce((acc, c) => acc + c.score, 0) / results.length);
+      setFailedList(localFailedList);
 
-                try {
+      // Rank successful candidates descending by score
+      successfulCandidates.sort((a, b) => b.score - a.score);
+      setCandidates(successfulCandidates);
+
+      if (successfulCandidates.length === 0 && localFailedList.length > 0) {
+        setError({
+          message: `All ${localFailedList.length} uploaded resumes could not be analyzed. Please check the files and try again.`,
+        });
+      } else if (successfulCandidates.length > 0) {
+        const avgScore = Math.round(
+          successfulCandidates.reduce((acc, c) => acc + c.score, 0) / successfulCandidates.length
+        );
+
+        try {
           await historyApi.saveHistoryItem({
             id: `screening-${Date.now()}`,
-            candidate_name: `${results.length} Candidates Screened`,
-            file_name: `Screening Batch (${results.length} candidates)`,
+            candidate_name: `${successfulCandidates.length} Candidates Screened`,
+            file_name: `Screening Batch (${successfulCandidates.length} candidates)`,
             job_title: 'Bulk Role Evaluation',
             score: avgScore,
             verdict: verdictForScore(avgScore),
             date: new Date().toISOString().replace('T', ' ').substring(0, 16),
             type: 'bulk',
-            candidates: results,
+            candidates: successfulCandidates,
             job_description_snippet: jobDescription.trim().slice(0, 160),
+            schema_version: 2,
           });
         } catch (saveErr) {
           console.warn('Failed to save screening history record:', saveErr);
         }
       }
-    } catch (err: unknown) {
-      const apiErr = err as ApiError;
-      setError({
-        message: apiErr.message || 'Candidate screening is temporarily unavailable. Please try again later.',
-        status: apiErr.status,
-      });
     } finally {
       setIsLoading(false);
     }
@@ -122,6 +285,13 @@ export const BulkScreeningView: React.FC = () => {
     setCandidatesToCompare(selected);
     setCompareModalOpen(true);
   };
+
+  // Compute live counts for circular progress
+  const doneCount = batchItems.filter((i) => i.status === 'done').length;
+  const failedCount = batchItems.filter((i) => i.status === 'failed').length;
+  const processedCount = doneCount + failedCount;
+  const waitingCount = batchItems.filter((i) => i.status === 'waiting').length;
+  const inFlightItem = batchItems.find((i) => i.status === 'analyzing');
 
   return (
     <div className="space-y-6">
@@ -153,17 +323,19 @@ export const BulkScreeningView: React.FC = () => {
                 className={`p-1.5 rounded-md ${
                   viewMode === 'cards' ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-400'
                 }`}
-                title="Grid Card View"
+                title="Cards View"
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
             </div>
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 setCandidates([]);
-                setFiles([]);
+                setFailedList([]);
+                setBatchItems([]);
               }}
               leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
             >
@@ -183,19 +355,53 @@ export const BulkScreeningView: React.FC = () => {
         />
       )}
 
-      {/* Loading state indicator */}
+      {/* Loading State Indicators */}
       {isLoading && (
-        <Card className="p-8 border-emerald-200 bg-emerald-50/20 text-center">
-          <div className="flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
-            <h3 className="text-sm font-semibold text-slate-900">
-              Screening & Ranking Candidates...
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
-              Evaluating candidate resumes against job description criteria. Please wait while results are processed.
-            </p>
-          </div>
-        </Card>
+        usePreIndexedCorpus ? (
+          /* Candidate Pool Indeterminate Loader */
+          <Card className="p-8 border-emerald-200 bg-emerald-50/20 text-center">
+            <div className="flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
+              <h3 className="text-sm font-semibold text-slate-900">
+                Screening & Ranking Candidates...
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+                Evaluating candidate resumes against job description criteria. Please wait while results are processed.
+              </p>
+              <ElapsedTime prefix="Screening candidate repository" />
+            </div>
+          </Card>
+        ) : (
+          /* File Upload Circular Progress Ring */
+          <Card className="p-6 border-emerald-200 bg-emerald-50/20">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8">
+              <CircularProgress
+                completed={processedCount}
+                total={batchItems.length}
+                failed={failedCount}
+              />
+              <div className="space-y-1.5 text-center sm:text-left text-xs" aria-live="polite">
+                <div className="font-semibold text-slate-900 text-sm">
+                  Screening Uploaded Resumes
+                </div>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
+                  <span className="text-emerald-700 font-medium">✓ {doneCount} analyzed</span>
+                  {failedCount > 0 && (
+                    <span className="text-rose-600 font-medium">· ✗ {failedCount} failed</span>
+                  )}
+                  {waitingCount > 0 && (
+                    <span className="text-slate-400">· {waitingCount} waiting</span>
+                  )}
+                </div>
+                {inFlightItem && (
+                  <div className="text-slate-600 truncate max-w-xs font-mono text-[11px] pt-1">
+                    Analyzing: <span className="font-semibold text-slate-800">{inFlightItem.file.name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        )
       )}
 
       {/* Top Input Form (Upload + JD) */}
@@ -216,24 +422,26 @@ export const BulkScreeningView: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg text-xs font-medium">
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setUsePreIndexedCorpus(true)}
                   className={`py-2 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 ${
                     usePreIndexedCorpus
                       ? 'bg-white text-slate-900 font-semibold shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  } ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <Database className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Candidate Pool</span>
                 </button>
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setUsePreIndexedCorpus(false)}
                   className={`py-2 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 ${
                     !usePreIndexedCorpus
                       ? 'bg-white text-slate-900 font-semibold shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  } ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <UploadCloud className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Upload Files</span>
@@ -258,11 +466,18 @@ export const BulkScreeningView: React.FC = () => {
                     multiple
                     accept=".pdf,application/pdf"
                     onChange={handleFileChange}
+                    disabled={isLoading}
                     className="hidden"
                   />
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-slate-400 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 transition-colors"
+                    onClick={() => {
+                      if (!isLoading) fileInputRef.current?.click();
+                    }}
+                    className={`border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors ${
+                      isLoading
+                        ? 'opacity-60 cursor-not-allowed bg-slate-100/50'
+                        : 'hover:border-slate-400 cursor-pointer bg-slate-50/50'
+                    }`}
                   >
                     <UploadCloud className="w-6 h-6 text-indigo-600 mb-2" />
                     <span className="text-xs font-semibold text-slate-800">
@@ -284,8 +499,12 @@ export const BulkScreeningView: React.FC = () => {
                             {f.name}
                           </span>
                           <button
+                            type="button"
+                            disabled={isLoading}
                             onClick={() => handleRemoveFile(i)}
-                            className="text-slate-400 hover:text-rose-600 p-0.5"
+                            className={`p-0.5 text-slate-400 hover:text-rose-600 ${
+                              isLoading ? 'opacity-40 cursor-not-allowed' : ''
+                            }`}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -310,8 +529,11 @@ export const BulkScreeningView: React.FC = () => {
                 rows={7}
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
+                disabled={isLoading}
                 placeholder="Paste role requirements, responsibilities, and must-have skill stack..."
-                className="w-full p-3 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-colors resize-none leading-relaxed font-sans"
+                className={`w-full p-3 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-colors resize-none leading-relaxed font-sans ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               />
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>{jobDescription.length} characters</span>
@@ -330,6 +552,26 @@ export const BulkScreeningView: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Could not analyze (N) list */}
+      {!isLoading && failedList.length > 0 && (
+        <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/40 text-xs space-y-2">
+          <div className="flex items-center gap-2 font-semibold text-rose-900">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Could not analyze ({failedList.length})</span>
+          </div>
+          <div className="divide-y divide-rose-100 max-h-48 overflow-y-auto">
+            {failedList.map((item, idx) => (
+              <div key={idx} className="py-2 flex items-center justify-between gap-3 text-slate-700">
+                <span className="font-mono text-slate-900 truncate max-w-xs font-medium">
+                  {item.fileName}
+                </span>
+                <span className="text-rose-700 text-[11px] text-right">{item.reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Results Section */}
       <div className="space-y-4">

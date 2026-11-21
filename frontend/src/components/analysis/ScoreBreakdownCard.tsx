@@ -10,6 +10,7 @@ export interface ScoreBreakdownCardProps {
   verdict: string;
   summary?: string;
   breakdown: ScoreBreakdown;
+  breakdownMax?: ScoreBreakdown;
   insights: string[];
 }
 
@@ -18,8 +19,22 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
   verdict,
   summary,
   breakdown,
+  breakdownMax,
   insights,
 }) => {
+  // Default weights from get_weights('mid') in src/scoring/weighted_score.py: 35 / 25 / 30 / 10
+  const maxWeights = breakdownMax || {
+    skill_overlap: 35,
+    semantic_similarity: 25,
+    experience_match: 30,
+    education_match: 10,
+  };
+
+  const maxSkill = maxWeights.skill_overlap || 35;
+  const maxSemantic = maxWeights.semantic_similarity || 25;
+  const maxExp = maxWeights.experience_match || 30;
+  const maxEdu = maxWeights.education_match || 10;
+
   return (
     <Card className="overflow-hidden border-slate-200">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
@@ -35,7 +50,7 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
 
         {/* Right: Component Breakdown & Insights */}
         <div className="lg:col-span-8 flex flex-col justify-between space-y-5">
-          {summary && (
+          {summary && summary.trim().length > 0 && (
             <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200/70 text-xs sm:text-sm text-slate-700 leading-relaxed">
               <span className="font-semibold text-slate-900 block mb-0.5">Executive Summary</span>
               {summary}
@@ -50,30 +65,30 @@ export const ScoreBreakdownCard: React.FC<ScoreBreakdownCardProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ProgressBar
                 label="Skill Overlap"
-                sublabel="Max 35%"
-                value={Math.round((breakdown.skill_overlap / 35) * 100)}
-                scoreDisplay={`${breakdown.skill_overlap.toFixed(1)} / 35`}
+                sublabel={`Max ${maxSkill} pts`}
+                value={Math.round((breakdown.skill_overlap / maxSkill) * 100)}
+                scoreDisplay={`${breakdown.skill_overlap.toFixed(1)} / ${maxSkill}`}
                 color="emerald"
               />
               <ProgressBar
                 label="Semantic Similarity"
-                sublabel="Max 25%"
-                value={Math.round((breakdown.semantic_similarity / 25) * 100)}
-                scoreDisplay={`${breakdown.semantic_similarity.toFixed(1)} / 25`}
+                sublabel={`Max ${maxSemantic} pts`}
+                value={Math.round((breakdown.semantic_similarity / maxSemantic) * 100)}
+                scoreDisplay={`${breakdown.semantic_similarity.toFixed(1)} / ${maxSemantic}`}
                 color="indigo"
               />
               <ProgressBar
                 label="Experience Alignment"
-                sublabel="Max 25%"
-                value={Math.round((breakdown.experience_match / 25) * 100)}
-                scoreDisplay={`${breakdown.experience_match.toFixed(1)} / 25`}
+                sublabel={`Max ${maxExp} pts`}
+                value={Math.round((breakdown.experience_match / maxExp) * 100)}
+                scoreDisplay={`${breakdown.experience_match.toFixed(1)} / ${maxExp}`}
                 color="blue"
               />
               <ProgressBar
                 label="Education Match"
-                sublabel="Max 15%"
-                value={Math.round((breakdown.education_match / 15) * 100)}
-                scoreDisplay={`${breakdown.education_match.toFixed(1)} / 15`}
+                sublabel={`Max ${maxEdu} pts`}
+                value={Math.round((breakdown.education_match / maxEdu) * 100)}
+                scoreDisplay={`${breakdown.education_match.toFixed(1)} / ${maxEdu}`}
                 color="purple"
               />
             </div>

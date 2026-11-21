@@ -88,11 +88,40 @@ export interface ScoreBreakdown {
   [key: string]: number;
 }
 
+export type CompatibilityLevel = 'High' | 'Medium' | 'Low';
+export type EducationCompatibility = 'Exceeds' | 'Meets' | 'Partially meets' | 'Does not meet';
+
+export interface ExperienceAssessment {
+  total_months: number | null;          // merged, non-overlapping professional experience; null = could not be calculated
+  relevant_months?: number | null;      // months in roles relevant to the job description
+  internship_months?: number | null;    // internships, reported separately and not included in total_months
+  roles_without_dates?: number;         // roles skipped because dates were missing
+  required_min_years?: number | null;   // from the job description; null = no requirement stated
+  compatibility: CompatibilityLevel | null; // null = not evaluated
+  basis?: string | null;                // one-line explanation from the backend
+}
+
+export interface EducationQualification {
+  degree_raw: string;                   // as written, e.g. "B.Tech in Computer Science"
+  degree_level?: string | null;         // normalised: "diploma" | "bachelor" | "master" | "phd" | ...
+  field?: string | null;
+  institution?: string | null;
+  year?: string | null;
+}
+
+export interface EducationAssessment {
+  qualifications: EducationQualification[]; // [] = none found in the resume
+  required: string[];                       // the job's education requirements; [] = none specified
+  compatibility: EducationCompatibility | null; // null = not evaluated or no requirement
+  basis?: string | null;
+}
+
 export interface MatchResult {
   final_score: number;
   verdict: MatchVerdict;
   summary?: string;
   breakdown: ScoreBreakdown;
+  breakdown_max?: ScoreBreakdown;
   insights: string[];
   skill_gap: SkillGapReport;
   evidence: EvidenceItem[];
@@ -104,6 +133,8 @@ export interface MatchResult {
   job_title?: string;
   experience_years?: number | null;
   education_level?: string | null;
+  experience?: ExperienceAssessment;
+  education?: EducationAssessment;
 }
 
 // Bulk screening candidate item
@@ -116,8 +147,8 @@ export interface CandidateScreeningResult {
   matched_skills: string[];
   missing_skills: string[];
   experience_years?: number | null;
-  experience_compatibility?: 'High' | 'Medium' | 'Low' | string;
-  education_compatibility?: 'Satisfied' | 'Partial' | 'Mismatch' | string;
+  experience_compatibility?: CompatibilityLevel | null;
+  education_compatibility?: EducationCompatibility | null;
   match_result?: MatchResult;
 }
 
@@ -141,6 +172,7 @@ export interface AnalysisHistoryItem {
   result?: MatchResult;
   candidates?: CandidateScreeningResult[];
   job_description_snippet?: string;
+  schema_version?: number;
 }
 
 // API Error representation

@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { CandidateScreeningResult, MatchVerdict } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { Button } from '../common/Button';
+import { formatDuration } from '../../utils/experience';
 import { STRONG_MATCH_MIN, MODERATE_MATCH_MIN } from '../../utils/verdict';
 import {
   Search,
@@ -69,7 +71,12 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
         } else if (sortField === 'name') {
           comp = a.candidate_name.localeCompare(b.candidate_name);
         } else if (sortField === 'experience') {
-          comp = (a.experience_years || 0) - (b.experience_years || 0);
+          const aExp = a.experience_years;
+          const bExp = b.experience_years;
+          if (aExp == null && bExp == null) return 0;
+          if (aExp == null) return 1;
+          if (bExp == null) return -1;
+          return sortOrder === 'asc' ? aExp - bExp : bExp - aExp;
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
@@ -256,13 +263,20 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
 
                     {/* Experience */}
                     <td className="py-3.5 px-4">
-                      <div className="text-xs">
-                        <span className="font-medium text-slate-800">
-                          {cand.experience_years ? `${cand.experience_years} yrs` : '—'}
-                        </span>
-                        <span className="text-slate-400 block text-[10px]">
-                          {cand.experience_compatibility || 'Evaluated'}
-                        </span>
+                      <div className="text-xs space-y-0.5">
+                        <div>
+                          <CompatibilityBadge
+                            level={cand.experience_compatibility}
+                            plainTextIfNull
+                            fallbackText="Not evaluated"
+                            size="sm"
+                          />
+                        </div>
+                        {typeof cand.experience_years === 'number' && (
+                          <span className="text-slate-400 block text-[10px]">
+                            {formatDuration(Math.round(cand.experience_years * 12))}
+                          </span>
+                        )}
                       </div>
                     </td>
 

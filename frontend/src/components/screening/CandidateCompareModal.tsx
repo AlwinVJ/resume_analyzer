@@ -2,7 +2,9 @@ import React from 'react';
 import { CandidateScreeningResult } from '../../types';
 import { ScoreGauge } from '../common/ScoreGauge';
 import { StatusBadge } from '../common/StatusBadge';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { Button } from '../common/Button';
+import { formatDuration } from '../../utils/experience';
 import { X, Trophy, Check, AlertTriangle, Briefcase, GraduationCap } from 'lucide-react';
 
 export interface CandidateCompareModalProps {
@@ -105,9 +107,19 @@ export const CandidateCompareModal: React.FC<CandidateCompareModalProps> = ({
                       <Briefcase className="w-3.5 h-3.5 text-slate-400" />
                       Experience
                     </span>
-                    <span className="font-semibold text-slate-800">
-                      {cand.experience_years ? `${cand.experience_years} Years` : 'Not specified'}
-                    </span>
+                    <div className="text-right flex items-center gap-1.5">
+                      {typeof cand.experience_years === 'number' && (
+                        <span className="text-[11px] text-slate-500">
+                          {formatDuration(Math.round(cand.experience_years * 12))}
+                        </span>
+                      )}
+                      <CompatibilityBadge
+                        level={cand.experience_compatibility}
+                        plainTextIfNull
+                        fallbackText="Not evaluated"
+                        size="sm"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between py-1 border-b border-slate-100">
@@ -135,9 +147,14 @@ export const CandidateCompareModal: React.FC<CandidateCompareModalProps> = ({
                       <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
                       Education
                     </span>
-                    <span className="font-semibold text-slate-800">
-                      {cand.education_compatibility || 'Satisfied'}
-                    </span>
+                    <div>
+                      <CompatibilityBadge
+                        level={cand.education_compatibility}
+                        plainTextIfNull
+                        fallbackText="Not evaluated"
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 </div>
 
