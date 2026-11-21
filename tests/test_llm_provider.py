@@ -12,8 +12,9 @@ from src.skill_engine.llm_provider import GroqProvider, LLMProviderError, OpenAI
 
 
 class FakeResponse:
-    def __init__(self, body: dict):
+    def __init__(self, body: dict, headers: dict = None):
         self._raw = json.dumps(body).encode("utf-8")
+        self.headers = headers or {}
 
     def read(self):
         return self._raw
@@ -25,8 +26,8 @@ class FakeResponse:
         return False
 
 
-def ok(content='{"skills": []}', finish_reason="stop"):
-    return FakeResponse({"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]})
+def ok(content='{"skills": []}', finish_reason="stop", headers=None):
+    return FakeResponse({"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]}, headers)
 
 
 def http_error(code, body="{}", retry_after=None):
@@ -49,6 +50,7 @@ def fake_http(monkeypatch):
             raise item
         return item
 
+    llm_provider._budgets.clear()
     monkeypatch.setattr(llm_provider.urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(llm_provider.time, "sleep", lambda s: state["sleeps"].append(s))
     return state
@@ -171,3 +173,47 @@ def test_placeholder_key_is_treated_as_missing(monkeypatch):
 def test_repr_never_contains_the_key():
     p = OpenAICompatibleProvider(api_key="gsk_secret123", model="m")
     assert "gsk_secret123" not in repr(p)
+
+
+# ---------- pacing under the tokens-per-minute limit ----------
+@pytest.mark.parametrize("value,seconds", [
+    ("7.66s", 7.66), ("2m59.56s", 179.56), ("1h2m", 3720), ("120ms", 0.12), ("", 0), (None, 0),
+])
+def test_parse_duration(value, seconds):
+    assert llm_provider._parse_duration(value) == pytest.approx(seconds)
+
+
+def test_waits_for_the_minute_budget_before_sending(fake_http, monkeypatch):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(llm_provider.time, "monotonic", lambda: clock["now"])
+
+    def sleep(seconds):
+        fake_http["sleeps"].append(seconds)
+        clock["now"] += seconds
+    monkeypatch.setattr(llm_provider.time, "sleep", sleep)
+
+    low = {"x-ratelimit-remaining-tokens": "300", "x-ratelimit-reset-tokens": "12.5s"}
+    fake_http["queue"] = [ok(headers=low), ok()]
+    p = provider()
+    p.generate("first")                       # response says only 300 tokens left for 12.5s
+    p.generate("second")                      # needs more than 300 -> waits for the reset first
+    assert len(fake_http["requests"]) == 2
+    assert fake_http["sleeps"] and fake_http["sleeps"][0] == pytest.approx(12.75)
+
+
+def test_enough_budget_sends_immediately(fake_http):
+    plenty = {"x-ratelimit-remaining-tokens": "7900", "x-ratelimit-reset-tokens": "1s"}
+    fake_http["queue"] = [ok(headers=plenty), ok()]
+    p = provider()
+    p.generate("a")
+    p.generate("b")
+    assert fake_http["sleeps"] == []
+
+
+def test_429_headers_also_update_the_budget(fake_http):
+    budget = llm_provider._budget_for("https://api.groq.com/openai/v1|m")
+    headers = email.message.Message()
+    headers["x-ratelimit-remaining-tokens"] = "0"
+    headers["x-ratelimit-reset-tokens"] = "5s"
+    budget.update(headers)
+    assert budget.remaining == 0 and budget.reserve(100) > 4

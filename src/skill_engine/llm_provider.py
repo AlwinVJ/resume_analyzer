@@ -2,6 +2,7 @@ import os
 import json
 import re
 import time
+import threading
 import random
 import socket
 import logging
@@ -102,13 +103,70 @@ def _http_error(code: int, body: str, retry_after) -> LLMProviderError:
     return LLMProviderError(f"The AI service returned HTTP {code}: {snippet}", status=code)
 
 
+# ---------- Pacing: stay under the tokens-per-minute limit instead of hitting 429s ----------
+# Groq returns x-ratelimit-remaining-tokens (tokens left this minute) and
+# x-ratelimit-reset-tokens (e.g. "7.66s", "2m59.56s") on every response. Before each call we
+# reserve an estimate of its tokens; if this minute's budget is spent we wait for the reset.
+
+def _parse_duration(value) -> float:
+    """'7.66s' -> 7.66, '2m59.56s' -> 179.56, '1h2m' -> 3720, '120ms' -> 0.12."""
+    if not value:
+        return 0.0
+    total = 0.0
+    for number, unit in re.findall(r"(\d+(?:\.\d+)?)(ms|h|m|s)", str(value)):
+        total += float(number) * {"ms": 0.001, "s": 1, "m": 60, "h": 3600}[unit]
+    return total
+
+
+class _TokenBudget:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.remaining = None   # tokens left in the current minute, as last reported
+        self.reset_at = 0.0     # time.monotonic() when the minute's budget refills
+
+    def update(self, headers) -> None:
+        if not headers:
+            return
+        remaining = headers.get("x-ratelimit-remaining-tokens")
+        reset = headers.get("x-ratelimit-reset-tokens")
+        if remaining is None:
+            return
+        try:
+            remaining = int(float(remaining))
+        except ValueError:
+            return
+        with self._lock:
+            self.remaining = remaining
+            self.reset_at = time.monotonic() + _parse_duration(reset)
+
+    def reserve(self, tokens: int) -> float:
+        """Reserve tokens for a call. Returns seconds to wait first (0 = send now)."""
+        with self._lock:
+            now = time.monotonic()
+            if self.remaining is None or now >= self.reset_at:
+                return 0.0
+            if self.remaining >= tokens:
+                self.remaining -= tokens
+                return 0.0
+            return self.reset_at - now
+
+
+_budgets: dict = {}
+_budgets_lock = threading.Lock()
+
+
+def _budget_for(key: str) -> _TokenBudget:
+    with _budgets_lock:
+        return _budgets.setdefault(key, _TokenBudget())
+
+
 # Groq sits behind Cloudflare, which blocks Python's default "Python-urllib/3.x"
 # User-Agent with "403 error code: 1010" before the API key is even checked.
 USER_AGENT = "resume-analyzer/1.0"
 
 
 # Send POST request and return JSON response
-def _post_json(url: str, payload: dict, headers: dict = None, timeout: int = 60) -> dict:
+def _post_json(url: str, payload: dict, headers: dict = None, timeout: int = 60, on_headers=None) -> dict:
     req_headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -124,8 +182,12 @@ def _post_json(url: str, payload: dict, headers: dict = None, timeout: int = 60)
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if on_headers:
+                on_headers(resp.headers)
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
+        if on_headers:
+            on_headers(e.headers)
         body = e.read().decode("utf-8", errors="replace")
         retry_after = _parse_retry_after(e.headers.get("retry-after") if e.headers else None)
         logger.warning("LLM HTTP %s: %s", e.code, body[:300])
@@ -171,6 +233,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         max_retry_wait: float = 20.0,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         reasoning_effort: str = None,
+        max_pace_wait: float = 60.0,
     ):
         self.api_key = api_key or ""
         self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
@@ -182,6 +245,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self.max_retry_wait = max_retry_wait
         self.system_prompt = system_prompt
         self.reasoning_effort = reasoning_effort
+        self.max_pace_wait = max_pace_wait
+        self._budget = _budget_for(f"{self.base_url}|{self.model}")
 
     # Never print the API key
     def __repr__(self) -> str:
@@ -220,6 +285,18 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             raise LLMOutputInvalidError("The AI service returned an empty answer.")
         return strip_markdown(content)
 
+    def _pace(self, estimate: int) -> None:
+        """Wait (up to max_pace_wait seconds in total) until this minute's token budget allows the call."""
+        waited = 0.0
+        while waited < self.max_pace_wait:
+            wait = self._budget.reserve(estimate)
+            if wait <= 0:
+                return
+            wait = min(wait + 0.25, self.max_pace_wait - waited)
+            logger.info("Pacing LLM call: waiting %.1fs for the tokens-per-minute budget", wait)
+            time.sleep(wait)
+            waited += wait
+
     def _wait_before_retry(self, attempt: int, error: LLMProviderError) -> float:
         if error.retry_after is not None:
             return error.retry_after
@@ -231,11 +308,15 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         url = f"{self.base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         payload = self._build_payload(prompt)
+        # Rough token estimate: ~4 characters per token for the prompt, plus room for the answer.
+        estimate = len(json.dumps(payload["messages"])) // 4 + 800
 
         attempt = 0
         while True:
+            self._pace(estimate)
             try:
-                data = _post_json(url, payload, headers=headers, timeout=self.timeout)
+                data = _post_json(url, payload, headers=headers, timeout=self.timeout,
+                                  on_headers=self._budget.update)
                 return self._extract_content(data)
             except LLMProviderError as e:
                 if e.status == 404:
@@ -285,6 +366,7 @@ class GroqProvider(OpenAICompatibleProvider):
             max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
             max_retries=settings.LLM_MAX_RETRIES if max_retries is None else max_retries,
             max_retry_wait=settings.LLM_MAX_RETRY_WAIT_S if max_retry_wait is None else max_retry_wait,
+            max_pace_wait=kwargs.pop("max_pace_wait", settings.LLM_MAX_PACE_WAIT_S),
             reasoning_effort=reasoning_effort or settings.LLM_REASONING_EFFORT,
             **kwargs,
         )
