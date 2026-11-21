@@ -110,11 +110,20 @@ export class ApiClient {
           ? data
           : undefined;
 
-        const friendlyMessage = sanitizeErrorMessage(response.status, rawDetail);
+        // Errors from our backend carry an error_code, and their detail is already written
+        // for users (e.g. "This PDF is probably a scanned image..."): show it as it is.
+        // Anything else (proxies, crashes, FastAPI defaults) is rewritten into a friendly message.
+        const errorCode =
+          typeof data === 'object' && data !== null && typeof (data as { error_code?: unknown }).error_code === 'string'
+            ? (data as { error_code: string }).error_code
+            : undefined;
+        const friendlyMessage =
+          errorCode && rawDetail ? rawDetail : sanitizeErrorMessage(response.status, rawDetail);
 
         const error: ApiError = {
           message: friendlyMessage,
           status: response.status,
+          error_code: errorCode,
         };
         throw error;
       }
