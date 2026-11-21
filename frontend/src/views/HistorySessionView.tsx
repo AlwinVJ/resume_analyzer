@@ -202,7 +202,7 @@ export const HistorySessionView: React.FC = () => {
                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
                       {selectedHistorySession.file_name || selectedHistorySession.result.file_name}
                     </span>
-                    {selectedHistorySession.result.experience_years !== undefined && (
+                    {selectedHistorySession.result.experience_years !== null && (
                       <span>{selectedHistorySession.result.experience_years} years experience</span>
                     )}
                     {selectedHistorySession.result.education_level && (
