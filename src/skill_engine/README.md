@@ -61,21 +61,22 @@ jd_text = "Looking for a Data Scientist with Python, SQL, Docker, and Kubernetes
 
 ## Usage
 
-### Local (Ollama with Qwen 2.5)
+### Groq API (Recommended)
 
-Start Ollama with the recommended model:
-```bash
-ollama run qwen2.5:3b
-```
+1. Create a `.env` file in the project root:
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   GROQ_MODEL=llama-3.3-70b-versatile
+   ```
 
-Run in Python:
-```python
-from src.skill_engine import SkillPipeline
+2. Run in Python:
+   ```python
+   from src.skill_engine import SkillPipeline
 
-pipeline = SkillPipeline()  # Uses local Ollama with qwen2.5:3b
-report = pipeline.run(resume_sections, jd_text)
-print(report.to_dict())
-```
+   pipeline = SkillPipeline()  # Automatically uses Groq with llama-3.3-70b-versatile
+   report = pipeline.run(resume_sections, jd_text)
+   print(report.to_dict())
+   ```
 
 ---
 
