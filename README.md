@@ -101,7 +101,7 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 ```
 resume_analyzer/
 ├── api/
-│   ├── main.py                      FastAPI app: GET /, POST /screen
+│   ├── main.py                      FastAPI app: GET /, POST /screen, POST /analyze
 │   └── schemas.py                   Request/response models
 ├── configs/
 │   └── settings.py                  Embedding model name, retrieval constants
@@ -269,6 +269,29 @@ curl -X POST http://127.0.0.1:8000/screen \
 |---|---|---|
 | `GET` | `/` | Health message |
 | `POST` | `/screen` | Rank all indexed resumes for a job description |
+| `POST` | `/analyze` | Analyse one uploaded PDF resume against a job description (needs a Groq key) |
+
+### Analyse one resume: `POST /analyze`
+
+`multipart/form-data` with `file` (PDF, max 10 MB and 10 pages) and `job_description` (50 to 20,000 characters):
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze \
+  -F "file=@data/resumes/Alex_Mercer_ML_Backend_Resume.pdf" \
+  -F "job_description=$(cat data/job_descriptions/sample_jd.txt)"
+```
+
+It returns a `MatchResult` (`src/schemas/match.py`): a 0–100 score and verdict (80+ Strong, 65+ Moderate),
+points per feature with their maxima, the skill gap, experience (total, relevant and internship months,
+with High/Medium/Low compatibility) and education (qualifications, with Exceeds/Meets/Partially meets/Does
+not meet), evidence quotes and recommendations. How it works is described in `src/analysis/__init__.py`:
+
+- Groq calls per resume: 2–3 (skill engine plus one profile extraction, run in parallel). The job description
+  is parsed once and cached, so a bulk run with one JD does not re-parse it.
+- The LLM only copies facts (roles, dates, degrees) and judges relevance. Python checks every fact against
+  the resume text, does all date arithmetic, and drops anything it cannot find.
+- Errors are JSON `{"detail": "...", "error_code": "..."}`: `UNSUPPORTED_FILE` 415, `FILE_TOO_LARGE` 413,
+  `SCANNED_PDF` / `CORRUPT_PDF` / `INVALID_INPUT` 422, `LLM_UNAVAILABLE` 503 (with `Retry-After` on rate limits).
 
 ---
 
@@ -397,6 +420,8 @@ The other files in `tests/` are scripts that print their results for manual insp
 | `python -m scripts.check_llm_normalization` | — | LLM output normalisation |
 | `python -m scripts.check_groq` | Groq key | Checks the key, one tiny call, parses a sample JD (`--skills` also runs the skill engine) |
 | `python -m scripts.check_job_description_parser_llm` | Groq key | Parses a long sample JD |
+| `python -m scripts.check_analyze` | Groq key, model download | Full `/analyze` logic on every PDF in `data/resumes/` (2–3 requests each) |
+| `python -m scripts.check_semantic_calibration` | Model download | Raw embedding similarities, to tune `SEMANTIC_SIM_FLOOR` / `CEILING` |
 | `python -m scripts.check_indexing_service` | Model download | **Rebuilds `storage/`** |
 | `python -m scripts.check_screening_service` | Model download, built index | Runs a sample screening |
 
@@ -410,11 +435,11 @@ These come from the backend audit of the `dev` branch. The full findings and a s
 
 - **Keyword-only screening query.** `/screen` builds its query from 19 built-in keywords (Python, AWS, NLP, …). A job description with none of them, such as a React or Java role, gives an empty query and a ranking that doesn't reflect the JD. Substring matching also adds false keywords (for example "leverage" matches `rag`).
 - **Ranking score.** Only resumes with a section in the top 10 retrieved chunks appear in the results. Resumes with more matching sections score higher. The section weights sum to 1.12.
-- **Modules not integrated.** The LLM JD parser, skill engine, scoring engine, hybrid retrieval and rerankers are not called by the API.
-- **Resume parsing.** Headers must match the list above exactly. `Skills:` (with a colon), `Work History` and similar variants are missed, and a repeated header overwrites the earlier section. Name, email and phone are not extracted. Scanned (image-only) PDFs produce no text and are silently skipped. A corrupt PDF stops the whole indexing run.
-- **Scoring engine.** It can return scores above 100. It raises an error for unrecognised degree names or a missing experience requirement.
+- **Modules not integrated into `/screen`.** `/analyze` uses the LLM JD parser, skill engine and scoring engine; `/screen` still uses keyword retrieval only. Hybrid retrieval and rerankers are not called by the API.
+- **Resume parsing.** Section headers must be on their own line; common variants (`Skills:`, `Work History`, `Internships`) are recognised. In `/analyze`, scanned and corrupt PDFs get a clear error; the indexing script used by `/screen` still skips scanned PDFs silently and stops on a corrupt one.
+- **Semantic score calibration.** The 0–1 semantic feature maps raw cosine similarity between `SEMANTIC_SIM_FLOOR` and `SEMANTIC_SIM_CEILING`. The defaults are estimates; tune them with `scripts.check_semantic_calibration`.
 - **Groq free-tier limits.** Limits apply per organisation and model (requests and tokens per minute and per day). The client retries short waits, then fails with a clear 503 error. Check your limits at https://console.groq.com/settings/limits.
-- **No upload endpoint, input validation, authentication or database.** Resumes are read from `data/resumes/`, and the index is stored as files in `storage/`. Missing index files cause a `500` error.
+- **No authentication or database.** `/analyze` takes uploads but does not store them. `/screen` reads resumes from `data/resumes/` and its index from `storage/`; missing index files cause a `500` error.
 - **Performance.** The embedding model and index are reloaded on every `/screen` request.
 - **Unverified ranking quality.** No retrieval or scoring evaluation set exists yet, so ranking quality has not been measured.
 
@@ -425,7 +450,7 @@ These come from the backend audit of the `dev` branch. The full findings and a s
 The audit's implementation roadmap has eight phases. In summary:
 
 1. **Critical integration.** Shared data schemas, one LLM provider, JD-driven queries, complete and bounded candidate ranking, and an `AnalysisService` that connects the JD parser, skill engine and scoring engine.
-2. **Missing backend features.** Resume upload, `POST /analyze`, an enriched `POST /screen`, persistence (SQLite), index management and health checks.
+2. **Missing backend features.** An enriched `POST /screen`, persistence (SQLite) and `/history`, index management and health checks. (`POST /analyze` is done.)
 3. **Parsing and extraction.** Robust PDF and section parsing; contact, education and experience extraction; one shared skill taxonomy.
 4. **RAG and embeddings.** Cosine similarity, size-bounded chunks, fixed hybrid retrieval, candidate-scoped evidence and grounded explanations, and an evaluation set.
 5. **Scoring.** Required vs preferred weighting, scores bounded to 0–100, explanation objects and calibration.

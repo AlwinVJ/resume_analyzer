@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     MIN_JD_CHARS: int = 50
     MAX_JD_CHARS: int = 20_000
 
+    # --- /analyze ---
+    MIN_RESUME_CHARS: int = 200            # less text than this = probably a scanned (image) PDF
+    MAX_RESUME_CHARS_FOR_LLM: int = 15_000 # longer resumes are cut before being sent to the LLM
+    JD_CACHE_SIZE: int = 64                # parsed job descriptions kept in memory (bulk = 1 parse)
+    DEFAULT_JOB_LEVEL: str = "mid"         # used when the JD gives no level or years
+    # Raw cosine similarity from all-MiniLM-L6-v2 is mapped linearly onto 0..1 between these
+    # two values. Tune with: python -m scripts.check_semantic_calibration
+    SEMANTIC_SIM_FLOOR: float = 0.15
+    SEMANTIC_SIM_CEILING: float = 0.65
+
     @property
     def INDEX_PATH(self) -> Path:
         return self.STORAGE_DIR / "faiss_index.bin"

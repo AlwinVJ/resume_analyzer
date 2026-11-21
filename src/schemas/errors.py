@@ -55,6 +55,11 @@ class LLMOutputInvalidError(AppError):
     error_code = "LLM_OUTPUT_INVALID"
 
 
+class ModelUnavailableError(AppError):
+    http_status = 503
+    error_code = "MODEL_UNAVAILABLE"
+
+
 class IndexNotReadyError(AppError):
     http_status = 503
     error_code = "INDEX_NOT_READY"

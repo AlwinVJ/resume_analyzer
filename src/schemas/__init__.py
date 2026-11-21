@@ -11,6 +11,7 @@ from src.schemas.errors import (
     InvalidInputError,
     LLMOutputInvalidError,
     LLMUnavailableError,
+    ModelUnavailableError,
     NotFoundError,
     ScannedPDFError,
     UnsupportedFileError,
@@ -18,7 +19,10 @@ from src.schemas.errors import (
 from src.schemas.jd import JDEducation, JDProfile
 from src.schemas.match import (
     CandidateScreeningResult,
+    EducationAssessment,
+    EducationQualification,
     EvidenceItem,
+    ExperienceAssessment,
     MatchResult,
     MissingSkill,
     ScoreBreakdown,
@@ -37,10 +41,11 @@ from src.schemas.resume import (
 
 __all__ = [
     "AppError", "CorruptPDFError", "FileTooLargeError", "IndexNotReadyError", "InvalidInputError",
-    "LLMOutputInvalidError", "LLMUnavailableError", "NotFoundError", "ScannedPDFError",
+    "LLMOutputInvalidError", "LLMUnavailableError", "ModelUnavailableError", "NotFoundError", "ScannedPDFError",
     "UnsupportedFileError",
     "JDEducation", "JDProfile",
-    "CandidateScreeningResult", "EvidenceItem", "MatchResult", "MissingSkill",
+    "CandidateScreeningResult", "EducationAssessment", "EducationQualification", "EvidenceItem",
+    "ExperienceAssessment", "MatchResult", "MissingSkill",
     "ScoreBreakdown", "ScreeningResponse", "SkillEvidence", "SkillGap", "Verdict",
     "ContactInfo", "EducationEntry", "ExperienceEntry", "ResumeProfile", "UploadResumeResponse",
 ]

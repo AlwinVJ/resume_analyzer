@@ -47,6 +47,36 @@ class SkillGap(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+CompatibilityLevel = Literal["High", "Medium", "Low"]
+EducationCompatibility = Literal["Exceeds", "Meets", "Partially meets", "Does not meet"]
+
+
+class ExperienceAssessment(BaseModel):
+    """Mirrors ExperienceAssessment in frontend/src/types/index.ts. null = could not be determined."""
+    total_months: int | None = None        # merged, non-overlapping professional roles (no internships)
+    relevant_months: int | None = None     # months in roles relevant to this job
+    internship_months: int | None = None   # internships, reported separately
+    roles_without_dates: int = 0           # roles skipped because their dates were missing/unreadable
+    required_min_years: int | None = None  # from the JD; null = no requirement stated
+    compatibility: CompatibilityLevel | None = None
+    basis: str | None = None
+
+
+class EducationQualification(BaseModel):
+    degree_raw: str
+    degree_level: str | None = None        # "phd" | "master" | "bachelor" | "diploma" | "certificate" | ...
+    field: str | None = None
+    institution: str | None = None
+    year: str | None = None
+
+
+class EducationAssessment(BaseModel):
+    qualifications: list[EducationQualification] = Field(default_factory=list)
+    required: list[str] = Field(default_factory=list)
+    compatibility: EducationCompatibility | None = None
+    basis: str | None = None
+
+
 class EvidenceItem(BaseModel):
     chunk_id: str | None = None
     section: str
@@ -59,6 +89,7 @@ class MatchResult(BaseModel):
     verdict: Verdict
     summary: str | None = None
     breakdown: ScoreBreakdown
+    breakdown_max: ScoreBreakdown | None = None   # maximum points per feature (the weights x 100)
     insights: list[str] = Field(default_factory=list)
     skill_gap: SkillGap
     evidence: list[EvidenceItem] = Field(default_factory=list)
@@ -70,6 +101,8 @@ class MatchResult(BaseModel):
     job_title: str | None = None
     experience_years: float | None = None
     education_level: str | None = None
+    experience: ExperienceAssessment | None = None
+    education: EducationAssessment | None = None
 
     @model_validator(mode="after")
     def _verdict_matches_score(self) -> "MatchResult":
@@ -92,8 +125,8 @@ class CandidateScreeningResult(BaseModel):
     matched_skills: list[str] = Field(default_factory=list)
     missing_skills: list[str] = Field(default_factory=list)
     experience_years: float | None = None
-    experience_compatibility: Literal["High", "Medium", "Low"] | None = None
-    education_compatibility: Literal["Satisfied", "Partial", "Mismatch"] | None = None
+    experience_compatibility: CompatibilityLevel | None = None
+    education_compatibility: EducationCompatibility | None = None
     match_result: MatchResult | None = None
 
 

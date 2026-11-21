@@ -110,17 +110,24 @@ def calculate_weighted_score(resume_features, job_role = "mid"):
     # Initialize weights according to the job role
     weights = get_weights(job_role)
 
+    # Features are 0..1. Bonuses above 1 (experience up to 1.2, a higher degree 1.1)
+    # are capped here so a feature never earns more than its weight and the total stays <= 100.
+    features = {
+        key: min(max(float(resume_features.get(key, 0) or 0), 0.0), 1.0)
+        for key in weights
+    }
+
     breakdown = {}
 
     for key, value in weights.items():
 
-        breakdown[key] = resume_features.get(key, 0) * value * 100
+        breakdown[key] = features[key] * value * 100
 
-    final_score = sum(breakdown.values())
+    final_score = round(sum(breakdown.values()), 2)
 
     return {
-        "final_score": round(final_score, 2),
+        "final_score": final_score,
         "verdict": get_verdict(final_score),
-        "insights": generate_insights(resume_features),
+        "insights": generate_insights(features),
         "breakdown": {key: round(value, 2) for key, value in breakdown.items()},
     }
