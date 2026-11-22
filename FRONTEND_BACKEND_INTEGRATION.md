@@ -37,7 +37,7 @@ It is structured to support manual backend implementation and integration, clear
       ▼                           ▼                          ▼
 ┌───────────────┐         ┌───────────────┐          ┌───────────────┐
 │  PDF Parser   │         │ Skill Engine  │          │    Scoring    │
-│  (PyMuPDF)    │         │  (LLM/Ollama) │          │    Engine     │
+│  (PyMuPDF)    │         │  (LLM/Groq)   │          │    Engine     │
 └───────────────┘         └───────────────┘          └───────────────┘
 ```
 
@@ -226,7 +226,7 @@ The frontend's `screeningApi.ts` automatically extracts candidate names, normali
 #### Error Responses
 - `415 Unsupported Media Type`: File uploaded is not a valid PDF.
 - `422 Unprocessable Entity`: Corrupt PDF, unparseable text, or missing JD.
-- `503 Service Unavailable`: LLM provider (Ollama) unreachable.
+- `503 Service Unavailable`: LLM provider (Groq) unreachable.
 
 ---
 

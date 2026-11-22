@@ -71,9 +71,9 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 | Candidate ranking | `src/rag/candidate_ranker.py` | 🟡 Works; score is a relative ranking value, not a 0–100 match score |
 | Screening API | `api/main.py`, `src/services/screening_service.py` | ✅ `POST /screen` |
 | Keyword JD → query | `src/parsers/job_description_parser.py` | 🟡 Recognises 19 built-in skill keywords only |
-| LLM JD parser | `src/parsers/job_description_parser_llm.py` | 🔌 Works standalone (needs a Groq API key); not used by the API yet |
-| Skill engine | `src/skill_engine/` | 🔌 Works standalone (needs a Groq API key); not used by the API yet |
-| Scoring engine | `src/scoring/` | 🔌 Works standalone; no module produces its inputs yet |
+| LLM JD parser | `src/parsers/job_description_parser_llm.py` | ✅ Integrated in `POST /analyze` (needs Groq key) |
+| Skill engine | `src/skill_engine/` | ✅ Integrated in `POST /analyze` (needs Groq key) |
+| Scoring engine | `src/scoring/` | ✅ Integrated in `POST /analyze` |
 | BM25 / hybrid retrieval, rerankers, query expansion, RAG pipeline | `src/rag/` | 🔌 Implemented; not used by the API |
 | Resume upload, 1:1 analysis endpoint, database | — | ❌ Not implemented |
 
