@@ -75,7 +75,7 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 | Skill engine | `src/skill_engine/` | ✅ Integrated in `POST /analyze` (needs Groq key) |
 | Scoring engine | `src/scoring/` | ✅ Integrated in `POST /analyze` |
 | BM25 / hybrid retrieval, rerankers, query expansion, RAG pipeline | `src/rag/` | 🔌 Implemented; not used by the API |
-| Resume upload, 1:1 analysis endpoint, database | — | ❌ Not implemented |
+| Resume upload, 1:1 analysis endpoint, database | — | ✅ Implemented |
 
 ✅ working · 🟡 partial · 🔌 implemented but not integrated · ❌ missing
 
@@ -149,11 +149,6 @@ resume_analyzer/
 ## Getting started
 
 ### Prerequisites
-
-- **Python 3.13**. This is the version the team develops on.
-- **Git**.
-- **Internet access on first run.** The embedding model is downloaded from Hugging Face the first time it is used.
-- **[Ollama](https://ollama.com)**, only if you want to use the LLM JD parser or the skill engine. The screening API does not need it.
 
 - **Python 3.13**. This is the version the team develops on.
 - **Git**.
