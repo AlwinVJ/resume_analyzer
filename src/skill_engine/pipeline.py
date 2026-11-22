@@ -20,7 +20,7 @@ from src.skill_engine.schemas import SkillGapReport
 # Main pipeline comparing resume skills against a job description
 class SkillPipeline:
     def __init__(self, llm_client=None, model: str = None, **kwargs):
-        # Uses Groq API with llama-3.3-70b-versatile by default
+        # Uses Groq API with GROQ_MODEL from .env (default openai/gpt-oss-120b)
         self.llm = llm_client or GroqProvider(model=model, **kwargs)
 
     # Run the full skill extraction, matching, and gap report workflow

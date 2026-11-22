@@ -5,6 +5,7 @@ from src.skill_engine.schemas import ExtractedResumeSkill
 from src.skill_engine.input_handler import format_descriptive_text_for_llm
 from src.skill_engine.normalizer import normalize_skill
 from src.skill_engine.llm_provider import strip_markdown
+from src.schemas.errors import LLMOutputInvalidError, LLMUnavailableError
 
 # Delimiters used in resumes to separate skills
 DELIMITERS = re.compile(r"[,;|\n•·*]+")
@@ -26,6 +27,33 @@ CATEGORY_PREFIXES = {
 }
 
 
+# Split "AWS (EC2, S3)" into AWS, EC2, S3 and "Kubernetes (K8s)" into Kubernetes, K8s,
+# instead of cutting at the comma inside the brackets ("aws (ec2", "s3)").
+def _expand_brackets(token: str) -> list:
+    match = re.fullmatch(r"\s*([^()]*?)\s*\(([^()]*)\)\s*(.*)", token)
+    if not match:
+        return [token]
+    outer, inner, rest = match.groups()
+    parts = [outer] + DELIMITERS.split(inner) + ([rest] if rest else [])
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def _split_outside_brackets(text: str) -> list:
+    tokens, current, depth = [], "", 0
+    for ch in text:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        if depth == 0 and DELIMITERS.fullmatch(ch):
+            tokens.append(current)
+            current = ""
+        else:
+            current += ch
+    tokens.append(current)
+    return tokens
+
+
 # Split listed skills by commas, bullets, and remove category headers
 def extract_explicit_skills(text: str) -> list:
     if not text or not isinstance(text, str):
@@ -38,7 +66,9 @@ def extract_explicit_skills(text: str) -> list:
             continue
         if ":" in line:
             head, _, tail = line.partition(":")
-            if head.strip().lower() not in CATEGORY_PREFIXES:
+            # "Cloud & Deployment: AWS, Heroku" -> the part before ":" is a category label,
+            # not a skill. Keep it only when nothing follows the colon ("Machine Learning:").
+            if not tail.strip() and head.strip().lower() not in CATEGORY_PREFIXES:
                 lines.append(head.strip())
             lines.append(tail.strip())
         else:
@@ -46,15 +76,16 @@ def extract_explicit_skills(text: str) -> list:
 
     skills = []
     seen = set()
-    for token in DELIMITERS.split("\n".join(lines)):
-        item = token.strip()
-        # Keep single-letter skills like C and R, drop other 1-letter characters
-        if not item or (len(item) == 1 and item.lower() not in {"c", "r"}):
-            continue
-        key = item.lower()
-        if key not in seen:
-            seen.add(key)
-            skills.append(item)
+    for token in _split_outside_brackets("\n".join(lines)):
+        for item in _expand_brackets(token.strip()):
+            item = item.strip(" .")
+            # Keep single-letter skills like C and R, drop other 1-letter characters
+            if not item or (len(item) == 1 and item.lower() not in {"c", "r"}):
+                continue
+            key = item.lower()
+            if key not in seen:
+                seen.add(key)
+                skills.append(item)
     return skills
 
 
@@ -83,6 +114,9 @@ def extract_llm_skills(descriptive_sections: dict, llm_client) -> list:
             elif isinstance(item, str) and item.strip():
                 skills.append(ExtractedResumeSkill(name=item.strip()))
         return skills
+    except (LLMUnavailableError, LLMOutputInvalidError):
+        raise  # an AI outage must not look like "no skills found"
+    
     except Exception:
         return []
 

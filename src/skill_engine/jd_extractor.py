@@ -2,7 +2,7 @@ import json
 from src.skill_engine.prompts import build_jd_extraction_prompt
 from src.skill_engine.schemas import ExtractedJDSkill
 from src.skill_engine.llm_provider import strip_markdown
-
+from src.schemas.errors import LLMOutputInvalidError, LLMUnavailableError
 
 # Extract required and preferred skills from job description text or dictionary
 def extract_jd_skills(jd_input, llm_client=None) -> list:
@@ -17,6 +17,8 @@ def extract_jd_skills(jd_input, llm_client=None) -> list:
             raw = llm_client.generate(build_jd_extraction_prompt(jd_input.strip()))
             data = json.loads(strip_markdown(raw))
             jd_input = data.get("skills", data) if isinstance(data, dict) else data
+        except (LLMUnavailableError, LLMOutputInvalidError):
+            raise  # an AI outage must not look like "the JD has no skills"
         except Exception:
             return []
 
