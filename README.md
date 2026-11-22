@@ -71,9 +71,9 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 | Candidate ranking | `src/rag/candidate_ranker.py` | 🟡 Works; score is a relative ranking value, not a 0–100 match score |
 | Screening API | `api/main.py`, `src/services/screening_service.py` | ✅ `POST /screen` |
 | Keyword JD → query | `src/parsers/job_description_parser.py` | 🟡 Recognises 19 built-in skill keywords only |
-| LLM JD parser | `src/parsers/job_description_parser_llm.py` | 🔌 Works standalone (needs Ollama); not used by the API |
-| Skill engine | `src/skill_engine/` | 🔌 Works standalone (needs Ollama); not used by the API |
-| Scoring engine | `src/scoring/` | 🔌 Works standalone; no module produces its inputs yet |
+| LLM JD parser | `src/parsers/job_description_parser_llm.py` | ✅ Integrated in `POST /analyze` (needs Groq key) |
+| Skill engine | `src/skill_engine/` | ✅ Integrated in `POST /analyze` (needs Groq key) |
+| Scoring engine | `src/scoring/` | ✅ Integrated in `POST /analyze` |
 | BM25 / hybrid retrieval, rerankers, query expansion, RAG pipeline | `src/rag/` | 🔌 Implemented; not used by the API |
 | Resume upload, 1:1 analysis endpoint, database | — | ❌ Not implemented |
 
@@ -92,7 +92,7 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 | Vector search | faiss-cpu 1.13 (`IndexFlatL2`) |
 | Keyword search | rank-bm25 0.2 |
 | Reranking | Cross-encoder `cross-encoder/ms-marco-MiniLM-L-6-v2` |
-| LLMs (local) | Ollama: `llama3.1:8b` (JD parser), `qwen2.5:3b` (skill engine) |
+| LLM | [Groq](https://console.groq.com) API, `openai/gpt-oss-120b` by default (JD parser and skill engine) |
 
 ---
 
@@ -101,7 +101,7 @@ score_resume(resume_data, jd_data)    → final score (0–100), verdict, per-fe
 ```
 resume_analyzer/
 ├── api/
-│   ├── main.py                      FastAPI app: GET /, POST /screen
+│   ├── main.py                      FastAPI app: GET /, POST /screen, POST /analyze
 │   └── schemas.py                   Request/response models
 ├── configs/
 │   └── settings.py                  Embedding model name, retrieval constants
@@ -155,7 +155,12 @@ resume_analyzer/
 - **Internet access on first run.** The embedding model is downloaded from Hugging Face the first time it is used.
 - **[Ollama](https://ollama.com)**, only if you want to use the LLM JD parser or the skill engine. The screening API does not need it.
 
-### 1. Clone the repository
+- **Python 3.13**. This is the version the team develops on.
+- **Git**.
+- **Internet access on first run.** The embedding model is downloaded from Hugging Face the first time it is used.
+- **A free [Groq API key](https://console.groq.com/keys)**, only for the LLM JD parser and the skill engine. The screening API does not need it.
+
+### 1. Backend Setup
 
 ```bash
 git clone https://github.com/AlwinVJ/resume_analyzer.git
@@ -186,12 +191,23 @@ pip install -r requirements.txt
 > On Linux, the pinned `torch` wheel from PyPI includes CUDA libraries and is several GB. If you don't need a GPU, install the CPU build first and then the rest of the requirements:
 > `pip install torch --index-url https://download.pytorch.org/whl/cpu`
 
-### 4. (Optional) Pull the LLM models
+### 4. (Optional) Add your Groq API key
+
+Copy `.env.example` to `.env` in the repository root and set your key:
 
 ```bash
-ollama pull llama3.1:8b    # used by JobDescriptionParserLLM
-ollama pull qwen2.5:3b     # used by the skill engine
+# Windows (PowerShell)
+Copy-Item .env.example .env
+# macOS / Linux
+cp .env.example .env
 ```
+
+```dotenv
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+`.env` is git-ignored. Never commit it. Check the setup with `python -m scripts.check_groq` (about 3 requests).
 
 > Run every command in this README from the **repository root**. Modules are imported as `src.…`, `api.…` and `configs.…`, and the storage and data paths are relative to the root.
 
@@ -206,7 +222,7 @@ Put resume PDFs in `data/resumes/`. Six synthetic sample resumes are already the
 ### 2. Build the index
 
 ```bash
-python -m tests.test_indexing_service
+python -m scripts.check_indexing_service
 ```
 
 This parses every PDF, embeds each section, and writes `storage/faiss_index.bin` and `storage/metadata.pkl`. It prints the number of resumes and chunks indexed. **Re-run it whenever you add, remove or change resumes.** The API does not detect a stale index.
@@ -258,6 +274,29 @@ curl -X POST http://127.0.0.1:8000/screen \
 |---|---|---|
 | `GET` | `/` | Health message |
 | `POST` | `/screen` | Rank all indexed resumes for a job description |
+| `POST` | `/analyze` | Analyse one uploaded PDF resume against a job description (needs a Groq key) |
+
+### Analyse one resume: `POST /analyze`
+
+`multipart/form-data` with `file` (PDF, max 10 MB and 10 pages) and `job_description` (50 to 20,000 characters):
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze \
+  -F "file=@data/resumes/Alex_Mercer_ML_Backend_Resume.pdf" \
+  -F "job_description=$(cat data/job_descriptions/sample_jd.txt)"
+```
+
+It returns a `MatchResult` (`src/schemas/match.py`): a 0–100 score and verdict (80+ Strong, 65+ Moderate),
+points per feature with their maxima, the skill gap, experience (total, relevant and internship months,
+with High/Medium/Low compatibility) and education (qualifications, with Exceeds/Meets/Partially meets/Does
+not meet), evidence quotes and recommendations. How it works is described in `src/analysis/__init__.py`:
+
+- Groq calls per resume: 2–3 (skill engine plus one profile extraction, run in parallel). The job description
+  is parsed once and cached, so a bulk run with one JD does not re-parse it.
+- The LLM only copies facts (roles, dates, degrees) and judges relevance. Python checks every fact against
+  the resume text, does all date arithmetic, and drops anything it cannot find.
+- Errors are JSON `{"detail": "...", "error_code": "..."}`: `UNSUPPORTED_FILE` 415, `FILE_TOO_LARGE` 413,
+  `SCANNED_PDF` / `CORRUPT_PDF` / `INVALID_INPUT` 422, `LLM_UNAVAILABLE` 503 (with `Retry-After` on rate limits).
 
 ---
 
@@ -278,7 +317,7 @@ sections = ResumeParser.parse(text)
 
 A header is recognised only when the whole line exactly matches one of the following (case-insensitive): `Professional Summary`, `Summary`, `Education`, `Technical Skills`, `Skills`, `Core Competencies`, `Projects`, `Experience`, `Work Experience`, `Professional Experience`, `Certifications`.
 
-### Parse a job description with the LLM (requires Ollama + `llama3.1:8b`)
+### Parse a job description with the LLM (requires a Groq API key)
 
 ```python
 from src.parsers.job_description_parser_llm import JobDescriptionParserLLM
@@ -299,7 +338,7 @@ Output schema:
 }
 ```
 
-### Skill-gap analysis (requires Ollama + `qwen2.5:3b`)
+### Skill-gap analysis (requires a Groq API key)
 
 ```python
 from src.skill_engine import SkillPipeline
@@ -350,9 +389,12 @@ result = score_resume(
 | `SIMILARITY_THRESHOLD` | `configs/settings.py` | `0.30` | Dense retrieval |
 | `TOP_K` | `configs/settings.py` | `3` | Defined; the screening service uses its own `top_k=10` |
 | `SEMANTIC_WEIGHT`, `BM25_WEIGHT` | `configs/settings.py` | `0.7`, `0.3` | Hybrid retriever |
-| `MODEL_NAME` | `JobDescriptionParserLLM` class | `llama3.1:8b` | LLM JD parser |
-| `OLLAMA_MODEL` | environment variable | `qwen2.5:3b` | Skill engine |
-| `OLLAMA_BASE_URL` | environment variable | `http://localhost:11434` | Skill engine |
+| `GROQ_API_KEY` | `.env` | — (required for LLM features) | JD parser, skill engine |
+| `GROQ_MODEL` | `.env` | `openai/gpt-oss-120b` | JD parser, skill engine |
+| `GROQ_BASE_URL` | `.env` | `https://api.groq.com/openai/v1` | JD parser, skill engine |
+| `LLM_TIMEOUT_S`, `LLM_MAX_TOKENS` | `.env` | `60`, `4096` | Every LLM call |
+| `LLM_REASONING_EFFORT` | `.env` | `low` | gpt-oss models only |
+| `LLM_MAX_RETRIES`, `LLM_MAX_RETRY_WAIT_S` | `.env` | `2`, `20` | Retries after 429 / 5xx / network errors |
 | Index paths | `src/services/*.py` | `storage/faiss_index.bin`, `storage/metadata.pkl` | Indexing and screening |
 
 If you change `MODEL_NAME`, rebuild the index. Vectors from different models are not compatible.
@@ -364,10 +406,10 @@ If you change `MODEL_NAME`, rebuild the index. Vectors from different models are
 ### Unit tests (offline)
 
 ```bash
-python -m unittest tests.test_skill_engine -v
+pytest
 ```
 
-Five tests cover the skill engine using a fake LLM client (`tests/mocks.py`). No network or Ollama needed.
+The tests use a fake LLM client (`tests/mocks.py`) and a fake HTTP layer, so they need no network and no API key.
 
 ### Check scripts
 
@@ -375,17 +417,20 @@ The other files in `tests/` are scripts that print their results for manual insp
 
 | Script | Needs | Notes |
 |---|---|---|
-| `python -m tests.test_pdf_parser` | — | Extracts text from a sample PDF |
-| `python -m tests.test_resume_parser` | — | Prints parsed sections |
-| `python -m tests.test_resume_loader` | — | Parses every PDF in `data/resumes/` |
-| `python -m tests.test_job_description_parser` | — | Keyword JD parser |
-| `python -m tests.test_llm_validation` | — | LLM output validation rules |
-| `python -m tests.test_llm_normalization` | — | LLM output normalisation |
-| `python -m tests.test_job_description_parser_llm` | Ollama | Calls `llama3.1:8b` |
-| `python -m tests.test_indexing_service` | Model download | **Rebuilds `storage/`** |
-| `python -m tests.test_screening_service` | Model download, built index | Runs a sample screening |
+| `python -m scripts.check_pdf_parser` | — | Extracts text from a sample PDF |
+| `python -m scripts.check_resume_parser` | — | Prints parsed sections |
+| `python -m scripts.check_resume_loader` | — | Parses every PDF in `data/resumes/` |
+| `python -m scripts.check_job_description_parser` | — | Keyword JD parser |
+| `python -m scripts.check_llm_validation` | — | LLM output validation rules |
+| `python -m scripts.check_llm_normalization` | — | LLM output normalisation |
+| `python -m scripts.check_groq` | Groq key | Checks the key, one tiny call, parses a sample JD (`--skills` also runs the skill engine) |
+| `python -m scripts.check_job_description_parser_llm` | Groq key | Parses a long sample JD |
+| `python -m scripts.check_analyze` | Groq key, model download | Full `/analyze` logic on every PDF in `data/resumes/` (2–3 requests each) |
+| `python -m scripts.check_semantic_calibration` | Model download | Raw embedding similarities, to tune `SEMANTIC_SIM_FLOOR` / `CEILING` |
+| `python -m scripts.check_indexing_service` | Model download | **Rebuilds `storage/`** |
+| `python -m scripts.check_screening_service` | Model download, built index | Runs a sample screening |
 
-> ⚠️ Avoid running plain `pytest` on the whole folder for now. Collecting the script files executes them, which rebuilds the index and calls Ollama.
+> ⚠️ > Run `pytest` from the repository root to run every automated test. It works offline.
 
 ---
 
@@ -395,11 +440,11 @@ These come from the backend audit of the `dev` branch. The full findings and a s
 
 - **Keyword-only screening query.** `/screen` builds its query from 19 built-in keywords (Python, AWS, NLP, …). A job description with none of them, such as a React or Java role, gives an empty query and a ranking that doesn't reflect the JD. Substring matching also adds false keywords (for example "leverage" matches `rag`).
 - **Ranking score.** Only resumes with a section in the top 10 retrieved chunks appear in the results. Resumes with more matching sections score higher. The section weights sum to 1.12.
-- **Modules not integrated.** The LLM JD parser, skill engine, scoring engine, hybrid retrieval and rerankers are not called by the API.
-- **Resume parsing.** Headers must match the list above exactly. `Skills:` (with a colon), `Work History` and similar variants are missed, and a repeated header overwrites the earlier section. Name, email and phone are not extracted. Scanned (image-only) PDFs produce no text and are silently skipped. A corrupt PDF stops the whole indexing run.
-- **Scoring engine.** It can return scores above 100. It raises an error for unrecognised degree names or a missing experience requirement.
-- **LLM failures.** If Ollama is unavailable, the skill engine returns an empty report instead of raising an error.
-- **No upload endpoint, input validation, authentication or database.** Resumes are read from `data/resumes/`, and the index is stored as files in `storage/`. Missing index files cause a `500` error.
+- **Modules not integrated into `/screen`.** `/analyze` uses the LLM JD parser, skill engine and scoring engine; `/screen` still uses keyword retrieval only. Hybrid retrieval and rerankers are not called by the API.
+- **Resume parsing.** Section headers must be on their own line; common variants (`Skills:`, `Work History`, `Internships`) are recognised. In `/analyze`, scanned and corrupt PDFs get a clear error; the indexing script used by `/screen` still skips scanned PDFs silently and stops on a corrupt one.
+- **Semantic score calibration.** The 0–1 semantic feature maps raw cosine similarity between `SEMANTIC_SIM_FLOOR` and `SEMANTIC_SIM_CEILING`. The defaults are estimates; tune them with `scripts.check_semantic_calibration`.
+- **Groq free-tier limits.** Limits apply per organisation and model (requests and tokens per minute and per day). The client retries short waits, then fails with a clear 503 error. Check your limits at https://console.groq.com/settings/limits.
+- **No authentication or database.** `/analyze` takes uploads but does not store them. `/screen` reads resumes from `data/resumes/` and its index from `storage/`; missing index files cause a `500` error.
 - **Performance.** The embedding model and index are reloaded on every `/screen` request.
 - **Unverified ranking quality.** No retrieval or scoring evaluation set exists yet, so ranking quality has not been measured.
 
@@ -410,7 +455,7 @@ These come from the backend audit of the `dev` branch. The full findings and a s
 The audit's implementation roadmap has eight phases. In summary:
 
 1. **Critical integration.** Shared data schemas, one LLM provider, JD-driven queries, complete and bounded candidate ranking, and an `AnalysisService` that connects the JD parser, skill engine and scoring engine.
-2. **Missing backend features.** Resume upload, `POST /analyze`, an enriched `POST /screen`, persistence (SQLite), index management and health checks.
+2. **Missing backend features.** An enriched `POST /screen`, persistence (SQLite) and `/history`, index management and health checks. (`POST /analyze` is done.)
 3. **Parsing and extraction.** Robust PDF and section parsing; contact, education and experience extraction; one shared skill taxonomy.
 4. **RAG and embeddings.** Cosine similarity, size-bounded chunks, fixed hybrid retrieval, candidate-scoped evidence and grounded explanations, and an evaluation set.
 5. **Scoring.** Required vs preferred weighting, scores bounded to 0–100, explanation objects and calibration.
